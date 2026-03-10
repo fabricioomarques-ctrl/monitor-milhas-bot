@@ -1,40 +1,116 @@
 import os
-import feedparser
+import re
+import json
 import requests
+import feedparser
 from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from urllib.parse import urljoin
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 CANAL_ID = os.getenv("CANAL_ID")
 
+ARQUIVO = "historico.json"
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0"
+}
+
 RSS_FEEDS = [
     "https://www.melhoresdestinos.com.br/feed",
     "https://passageirodeprimeira.com/feed",
     "https://pontospravoar.com/feed",
-    "https://estevaopelomundo.com.br/feed",
+    "https://estevaopelomundo.com.br/feed"
 ]
 
-MILHEIRO_SITES = [
+PROGRAMAS = {
+    "Livelo": "https://www.livelo.com.br/promocoes",
+    "Smiles": "https://www.smiles.com.br/promocoes",
+    "LATAM": "https://www.latampass.com/pt_br/promocoes",
+    "TudoAzul": "https://tudoazul.voeazul.com.br/web/azul/promocoes"
+}
+
+MILHEIRO = [
     "https://www.maxmilhas.com.br",
     "https://www.hotmilhas.com.br"
 ]
 
-enviados = set()
+BONUS_REGEX = r"(50|60|70|80|90|100)\s?%"
+
+PALAVRAS_VALIDAS = [
+    "milha",
+    "milhas",
+    "pontos",
+    "transfer",
+    "bônus",
+    "bonus",
+    "fidelidade",
+    "latam pass",
+    "smiles",
+    "livelo",
+    "tudoazul"
+]
+
+PALAVRAS_BLOQUEADAS = [
+    "hotel",
+    "seguro",
+    "ingresso",
+    "cruzeiro",
+    "cvc",
+    "pacote",
+    "resort"
+]
+
 ranking = {}
+historico = {}
 
-def enviar(context, mensagem):
+def carregar():
+    try:
+        with open(ARQUIVO) as f:
+            return json.load(f)
+    except:
+        return {}
 
-    context.bot.send_message(chat_id=CHAT_ID, text=mensagem)
+def salvar():
+    with open(ARQUIVO, "w") as f:
+        json.dump(historico, f)
+
+historico = carregar()
+
+async def enviar(context, texto):
+
+    await context.bot.send_message(chat_id=CHAT_ID, text=texto)
 
     if CANAL_ID:
-        context.bot.send_message(chat_id=CANAL_ID, text=mensagem)
+        await context.bot.send_message(chat_id=CANAL_ID, text=texto)
+
+def filtro_valido(texto):
+
+    t = texto.lower()
+
+    if any(b in t for b in PALAVRAS_BLOQUEADAS):
+        return False
+
+    if any(v in t for v in PALAVRAS_VALIDAS):
+        return True
+
+    return False
+
+def detectar_bonus(texto):
+
+    m = re.search(BONUS_REGEX, texto)
+
+    if m:
+        return m.group()
+
+    return ""
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     texto = """
-✈️ Radar de Milhas PRO MAX
+✈️ Radar de Milhas PRO
 
 /menu
 /promocoes
@@ -66,12 +142,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🟢 Radar online
 
 Promoções detectadas: {len(ranking)}
-Fontes monitoradas: {len(RSS_FEEDS)}
-
-Bots ativos:
-✔ blogs
-✔ milheiro
-✔ radar
+Fontes monitoradas: {len(RSS_FEEDS) + len(PROGRAMAS)}
 """
 
     await update.message.reply_text(texto)
@@ -79,44 +150,29 @@ Bots ativos:
 async def ranking_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not ranking:
-        await update.message.reply_text("Nenhuma promoção detectada ainda.")
+        await update.message.reply_text("Nenhuma promoção detectada.")
         return
 
     texto = "🏆 Ranking promoções\n\n"
 
     ordenado = sorted(ranking.items(), key=lambda x: x[1], reverse=True)
 
-    for i,(titulo,pontos) in enumerate(ordenado[:10],1):
-
-        texto += f"{i}. {titulo}\n"
+    for i,(k,v) in enumerate(ordenado[:10],1):
+        texto += f"{i}. {k}\n"
 
     await update.message.reply_text(texto)
 
 async def promocoes_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    texto = "🔥 Radar monitorando promoções em tempo real."
-
-    await update.message.reply_text(texto)
+    await update.message.reply_text("🔥 Radar monitorando promoções.")
 
 async def transferencias_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    texto = "🔁 Monitorando transferências bonificadas."
-
-    await update.message.reply_text(texto)
+    await update.message.reply_text("🔁 Monitorando transferências bonificadas.")
 
 async def passagens_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    texto = """
-✈️ Radar de passagens ativo
-
-Detectando:
-
-• promoções
-• milhas baratas
-• erro tarifário
-"""
-
-    await update.message.reply_text(texto)
+    await update.message.reply_text("✈️ Monitorando passagens com milhas.")
 
 async def monitor_blogs(context):
 
@@ -124,85 +180,132 @@ async def monitor_blogs(context):
 
         try:
 
-            noticias = feedparser.parse(feed)
+            data = feedparser.parse(feed)
 
-            for post in noticias.entries[:5]:
+            for post in data.entries[:5]:
 
                 titulo = post.title
                 link = post.link
 
-                chave = titulo
-
-                if chave in enviados:
+                if not filtro_valido(titulo):
                     continue
 
-                if "milha" in titulo.lower() or "promo" in titulo.lower():
+                if link in historico:
+                    continue
 
-                    msg = f"🔥 Promoção detectada\n\n{titulo}\n{link}"
+                bonus = detectar_bonus(titulo)
 
-                    await context.bot.send_message(chat_id=CHAT_ID,text=msg)
+                msg = f"🔥 Promoção detectada\n\n{titulo}"
 
-                    if CANAL_ID:
-                        await context.bot.send_message(chat_id=CANAL_ID,text=msg)
+                if bonus:
+                    msg += f"\nBônus: {bonus}"
 
-                    enviados.add(chave)
+                msg += f"\n{link}"
 
-                    ranking[titulo] = ranking.get(titulo,0) + 10
+                await enviar(context,msg)
 
-                    return
+                historico[link] = True
+                salvar()
+
+                ranking[titulo] = ranking.get(titulo,0)+10
+
+                return
+
+        except:
+            pass
+
+async def monitor_programas(context):
+
+    for nome,url in PROGRAMAS.items():
+
+        try:
+
+            r = requests.get(url,headers=HEADERS,timeout=15)
+
+            soup = BeautifulSoup(r.text,"html.parser")
+
+            links = soup.find_all("a",href=True)
+
+            for a in links:
+
+                link = urljoin(url,a["href"])
+                texto = a.text.strip()
+
+                if not filtro_valido(texto):
+                    continue
+
+                if link in historico:
+                    continue
+
+                bonus = detectar_bonus(texto)
+
+                msg = f"⚡ Promoção detectada\n\nPrograma: {nome}\n{texto}"
+
+                if bonus:
+                    msg += f"\nBônus: {bonus}"
+
+                msg += f"\n{link}"
+
+                await enviar(context,msg)
+
+                historico[link]=True
+                salvar()
+
+                ranking[nome]=ranking.get(nome,0)+5
+
+                return
 
         except:
             pass
 
 async def monitor_milheiro(context):
 
-    for site in MILHEIRO_SITES:
+    for site in MILHEIRO:
 
         try:
 
-            r = requests.get(site,timeout=10)
+            r=requests.get(site,headers=HEADERS,timeout=15)
 
-            txt = r.text.lower()
+            txt=r.text.lower()
 
             if "r$ 15" in txt or "r$15" in txt:
 
-                chave = site
-
-                if chave in enviados:
+                if site in historico:
                     continue
 
-                msg = f"💰 Milheiro barato detectado\n\n{site}"
+                msg=f"💰 Milheiro barato detectado\n\n{site}"
 
-                await context.bot.send_message(chat_id=CHAT_ID,text=msg)
+                await enviar(context,msg)
 
-                if CANAL_ID:
-                    await context.bot.send_message(chat_id=CANAL_ID,text=msg)
+                historico[site]=True
+                salvar()
 
-                enviados.add(chave)
+                ranking["milheiro barato"]=ranking.get("milheiro barato",0)+7
 
         except:
             pass
 
 def main():
 
-    app = ApplicationBuilder().token(TOKEN).build()
+    app=ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start",start))
     app.add_handler(CommandHandler("menu",menu))
+    app.add_handler(CommandHandler("status",status))
+    app.add_handler(CommandHandler("ranking",ranking_cmd))
     app.add_handler(CommandHandler("promocoes",promocoes_cmd))
     app.add_handler(CommandHandler("transferencias",transferencias_cmd))
     app.add_handler(CommandHandler("passagens",passagens_cmd))
-    app.add_handler(CommandHandler("ranking",ranking_cmd))
-    app.add_handler(CommandHandler("status",status))
 
-    job = app.job_queue
+    job=app.job_queue
 
-    job.run_repeating(monitor_blogs,interval=600,first=10)
-    job.run_repeating(monitor_milheiro,interval=900,first=30)
+    job.run_repeating(monitor_blogs,interval=600,first=20)
+    job.run_repeating(monitor_programas,interval=900,first=40)
+    job.run_repeating(monitor_milheiro,interval=1200,first=60)
 
-    print("Radar PRO iniciado")
+    print("Radar de Milhas PRO iniciado")
 
     app.run_polling()
 
-if __name__ == "__main__":
+if __name__=="__main__":
     main()
