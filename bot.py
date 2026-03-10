@@ -15,18 +15,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    url = "https://www.melhoresdestinos.com.br/tag/milhas"
+    url = "https://www.melhoresdestinos.com.br/"
 
     response = requests.get(url)
     soup = BeautifulSoup(response.text, "html.parser")
 
-    posts = soup.select("h2.entry-title a")
+    posts = soup.select("h3 a")
 
     resposta = "🔥 Promoções encontradas:\n\n"
 
     for post in posts[:5]:
-        titulo = post.text
+        titulo = post.text.strip()
         link = post["href"]
+
         resposta += f"{titulo}\n{link}\n\n"
 
     await update.message.reply_text(resposta)
