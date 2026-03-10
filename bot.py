@@ -1,6 +1,6 @@
 import os
-import requests
 import feedparser
+import requests
 from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -8,177 +8,159 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# RSS monitorados
 RSS_FEEDS = [
-    "https://www.melhoresdestinos.com.br/feed",
-    "https://passageirodeprimeira.com/feed",
-    "https://www.melhorescartoes.com.br/feed"
+
+"https://www.melhoresdestinos.com.br/feed",
+"https://passageirodeprimeira.com/feed",
+"https://www.melhorescartoes.com.br/feed",
+"https://passagensimperdiveis.com.br/feed"
+
 ]
 
-ULTIMO_POST = ""
+ULTIMA_PROMO = ""
 
-# =============================
-# COMANDOS
-# =============================
+# PALAVRAS CHAVE
+
+BONUS_ALERTA = ["100%", "90%", "85%", "80%"]
+
+PROGRAMAS = [
+
+"livelo",
+"smiles",
+"latam",
+"azul",
+"tudoazul"
+
+]
+
+ERRO_TARIFARIO = [
+
+"erro tarifario",
+"tarifa erro",
+"passagem absurda"
+
+]
+
+MILHEIRO = [
+
+"milheiro",
+"R$14",
+"R$15",
+"R$16"
+
+]
+
+# ==========================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    mensagem = (
-        "✈️ Radar de Milhas PRO+ ativo\n\n"
-        "Comandos disponíveis:\n"
-        "/menu\n"
-        "/promocoes\n"
-        "/transferencias\n"
-        "/passagens"
-    )
+    texto = (
 
-    await update.message.reply_text(mensagem)
+"✈️ Radar de Milhas PRO++\n\n"
 
+"/menu\n"
+"/promocoes\n"
+"/transferencias\n"
+"/passagens\n"
+"/status\n"
+
+)
+
+    await update.message.reply_text(texto)
+
+# ==========================
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    mensagem = (
-        "📡 MENU RADAR\n\n"
-        "✈️ /promocoes\n"
-        "🔄 /transferencias\n"
-        "🛫 /passagens"
-    )
+    texto = (
 
-    await update.message.reply_text(mensagem)
+"📡 MENU RADAR\n\n"
 
+"/promocoes\n"
+"/transferencias\n"
+"/passagens\n"
+"/status"
 
-# =============================
-# PROMOÇÕES GERAIS
-# =============================
+)
+
+    await update.message.reply_text(texto)
+
+# ==========================
+
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    texto = (
+
+"🟢 RADAR ONLINE\n\n"
+
+"Monitorando:\n"
+
+"• Blogs de milhas\n"
+"• Livelo\n"
+"• Smiles\n"
+"• LATAM Pass\n"
+"• Azul\n"
+
+)
+
+    await update.message.reply_text(texto)
+
+# ==========================
 
 async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    url = "https://www.melhoresdestinos.com.br/"
+    texto = "🔎 Buscando promoções recentes..."
 
-    headers = {"User-Agent": "Mozilla/5.0"}
+    await update.message.reply_text(texto)
 
-    response = requests.get(url, headers=headers)
+# ==========================
 
-    soup = BeautifulSoup(response.text, "html.parser")
+async def monitor(context: ContextTypes.DEFAULT_TYPE):
 
-    links = soup.find_all("a")
-
-    resposta = "🔥 Promoções encontradas:\n\n"
-
-    count = 0
-
-    for link in links:
-
-        titulo = link.text.strip()
-        href = link.get("href")
-
-        if not href:
-            continue
-
-        if "milhas" in titulo.lower() or "passagem" in titulo.lower():
-
-            if href.startswith("http"):
-
-                resposta += f"{titulo}\n{href}\n\n"
-
-                count += 1
-
-        if count == 5:
-            break
-
-    if count == 0:
-        resposta += "Nenhuma promoção encontrada."
-
-    await update.message.reply_text(resposta)
-
-
-# =============================
-# TRANSFERÊNCIAS
-# =============================
-
-async def transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    resposta = (
-        "🔄 Monitorando transferências:\n\n"
-        "• Livelo\n"
-        "• LATAM Pass\n"
-        "• Smiles\n"
-        "• TudoAzul\n\n"
-        "Use /promocoes para ver ofertas atuais."
-    )
-
-    await update.message.reply_text(resposta)
-
-
-# =============================
-# PASSAGENS
-# =============================
-
-async def passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    resposta = (
-        "🛫 Buscando promoções de passagens...\n\n"
-        "Sites monitorados:\n"
-        "Melhores Destinos\n"
-        "Passageiro de Primeira\n"
-        "Melhores Cartões"
-    )
-
-    await update.message.reply_text(resposta)
-
-
-# =============================
-# MONITOR RSS AUTOMÁTICO
-# =============================
-
-async def monitorar(context: ContextTypes.DEFAULT_TYPE):
-
-    global ULTIMO_POST
+    global ULTIMA_PROMO
 
     for feed in RSS_FEEDS:
 
         noticias = feedparser.parse(feed)
 
-        for entry in noticias.entries[:3]:
+        for post in noticias.entries[:5]:
 
-            titulo = entry.title
-            link = entry.link
+            titulo = post.title
+            link = post.link
 
-            if titulo == ULTIMO_POST:
+            if titulo == ULTIMA_PROMO:
                 continue
 
             texto = titulo.lower()
 
-            if (
-                "livelo" in texto
-                or "milhas" in texto
-                or "passagem" in texto
-                or "latam" in texto
-                or "smiles" in texto
-                or "azul" in texto
-            ):
+            if any(p in texto for p in PROGRAMAS):
 
-                mensagem = f"🚨 Nova promoção detectada!\n\n{titulo}\n{link}"
+                mensagem = f"🚨 Promoção detectada\n\n{titulo}\n{link}"
 
-                if "100%" in texto or "90%" in texto or "80%" in texto:
+                if any(b in texto for b in BONUS_ALERTA):
 
-                    mensagem = (
-                        "🔥 ALERTA DE BÔNUS ALTO!\n\n"
-                        f"{titulo}\n{link}"
-                    )
+                    mensagem = f"🔥 BÔNUS ALTO DETECTADO\n\n{titulo}\n{link}"
+
+                if any(m in texto for m in MILHEIRO):
+
+                    mensagem = f"💰 MILHEIRO BARATO\n\n{titulo}\n{link}"
+
+                if any(e in texto for e in ERRO_TARIFARIO):
+
+                    mensagem = f"✈️ ERRO TARIFÁRIO\n\n{titulo}\n{link}"
 
                 await context.bot.send_message(
-                    chat_id=CHAT_ID,
-                    text=mensagem
-                )
 
-                ULTIMO_POST = titulo
+chat_id=CHAT_ID,
+text=mensagem
+
+)
+
+                ULTIMA_PROMO = titulo
+
                 return
 
-
-# =============================
-# MAIN
-# =============================
+# ==========================
 
 def main():
 
@@ -186,22 +168,22 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("menu", menu))
+    app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("promocoes", promocoes))
-    app.add_handler(CommandHandler("transferencias", transferencias))
-    app.add_handler(CommandHandler("passagens", passagens))
 
     job = app.job_queue
 
     job.run_repeating(
-        monitorar,
-        interval=600,
-        first=20
-    )
 
-    print("Radar de Milhas PRO+ iniciado")
+monitor,
+interval=600,
+first=30
+
+)
+
+    print("Radar PRO++ iniciado")
 
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
