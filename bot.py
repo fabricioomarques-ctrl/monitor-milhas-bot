@@ -12,7 +12,7 @@ CHAT_ID = os.getenv("CHAT_ID")
 ARQUIVO = "promocoes_enviadas.json"
 
 # -----------------------------
-# SITES RSS (BLOGS)
+# RSS BLOGS
 # -----------------------------
 
 RSS_FEEDS = [
@@ -25,56 +25,74 @@ RSS_FEEDS = [
 ]
 
 # -----------------------------
-# SITES OFICIAIS PROGRAMAS
+# PROGRAMAS
 # -----------------------------
 
 PROGRAMAS_SITES = {
 
-"Livelo": "https://www.livelo.com.br/ofertas",
-"Smiles": "https://www.smiles.com.br/promocoes",
-"LATAM Pass": "https://www.latampass.com/pt_br/promocoes",
-"TudoAzul": "https://tudoazul.voeazul.com.br/web/azul/promocoes"
+"Livelo":"https://www.livelo.com.br/ofertas",
+"Smiles":"https://www.smiles.com.br/promocoes",
+"LATAM":"https://www.latampass.com/pt_br/promocoes",
+"TudoAzul":"https://tudoazul.voeazul.com.br/web/azul/promocoes"
 
 }
 
-PROGRAMAS = ["livelo","smiles","latam","azul"]
-BANCOS = ["itau","itaú","bradesco","santander","inter","c6"]
-BONUS = ["100%","90%","85%","80%"]
-MILHEIRO = ["milheiro","r$14","r$15","r$16","r$17"]
-ERRO = ["erro tarifario","tarifa erro"]
+# -----------------------------
+# FONTES ANTECIPADAS
+# -----------------------------
 
-ranking = {}
+FONTES_ANTECIPADAS = [
+
+"https://www.livelo.com.br/parceiros",
+"https://www.smiles.com.br/parceiros",
+"https://www.latampass.com/pt_br/parceiros",
+"https://tudoazul.voeazul.com.br/parceiros"
+
+]
+
+# -----------------------------
+# MILHEIRO
+# -----------------------------
+
+MILHEIRO_SITES = [
+
+"https://www.maxmilhas.com.br",
+"https://www.hotmilhas.com.br"
+
+]
+
+BONUS = ["100%","90%","85%","80%"]
 
 # -----------------------------
 # HISTÓRICO
 # -----------------------------
 
-def carregar_historico():
+def carregar():
 
     try:
-
         with open(ARQUIVO,"r") as f:
             return json.load(f)
 
     except:
-
         return []
 
-def salvar_historico(data):
+def salvar(data):
 
     with open(ARQUIVO,"w") as f:
         json.dump(data,f)
 
-historico = carregar_historico()
+historico = carregar()
+
+ranking = {}
 
 # -----------------------------
-# COMANDOS TELEGRAM
+# COMANDOS
 # -----------------------------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     texto = """
-✈️ Radar de Milhas PRO+++
+✈️ Radar de Milhas PRO MAX
 
 /menu
 /promocoes
@@ -86,12 +104,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(texto)
 
-# -----------------------------
-
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     texto = """
-📡 MENU RADAR
+📡 MENU
 
 /promocoes
 /transferencias
@@ -102,25 +118,24 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(texto)
 
-# -----------------------------
-
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     texto = f"""
 🟢 RADAR ONLINE
 
-Monitorando:
+Fontes monitoradas: 12+
 
-Blogs de milhas
-Programas de pontos
-Bancos
+Promoções hoje: {len(ranking)}
 
-Promoções detectadas hoje: {len(ranking)}
+Detectores ativos:
+
+✔ blogs
+✔ programas
+✔ milheiro
+✔ radar antecipado
 """
 
     await update.message.reply_text(texto)
-
-# -----------------------------
 
 async def ranking_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -129,7 +144,7 @@ async def ranking_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Nenhuma promoção detectada hoje.")
         return
 
-    texto = "🏆 Ranking de promoções do dia\n\n"
+    texto = "🏆 Ranking promoções\n\n"
 
     ordenado = sorted(ranking.items(), key=lambda x: x[1], reverse=True)
 
@@ -144,71 +159,7 @@ async def ranking_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(texto)
 
 # -----------------------------
-
-async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    await update.message.reply_text("🔎 Radar verificando promoções...")
-
-# -----------------------------
-
-async def transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    texto = """
-💳 Monitor de transferências ativo
-
-Livelo
-Smiles
-LATAM Pass
-TudoAzul
-
-Bancos
-
-Itaú
-Bradesco
-Santander
-C6
-Inter
-"""
-
-    await update.message.reply_text(texto)
-
-# -----------------------------
-
-async def passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    texto = """
-✈️ Monitor de passagens ativo
-
-Detectando:
-
-Erro tarifário
-Promoções relâmpago
-Milheiro barato
-"""
-
-    await update.message.reply_text(texto)
-
-# -----------------------------
-# SISTEMA DE PONTUAÇÃO
-# -----------------------------
-
-def pontuar(texto):
-
-    score = 1
-
-    if any(b in texto for b in BONUS):
-        score += 5
-
-    if any(m in texto for m in MILHEIRO):
-        score += 3
-
-    if any(e in texto for e in ERRO):
-        score += 4
-
-    return score
-
-# -----------------------------
-# MONITOR BLOGS
+# RADAR BLOGS
 # -----------------------------
 
 async def monitor_blogs(context):
@@ -229,70 +180,107 @@ async def monitor_blogs(context):
 
             texto = titulo.lower()
 
-            mensagem = None
-
-            if any(p in texto for p in PROGRAMAS):
-
-                mensagem = f"🚨 Promoção detectada\n\n{titulo}\n{link}"
-
             if any(b in texto for b in BONUS):
 
-                mensagem = f"🔥 BÔNUS ALTO DETECTADO\n\n{titulo}\n{link}"
+                msg = f"🔥 BÔNUS DETECTADO\n\n{titulo}\n{link}"
 
-            if any(m in texto for m in MILHEIRO):
-
-                mensagem = f"💰 Milheiro barato\n\n{titulo}\n{link}"
-
-            if any(e in texto for e in ERRO):
-
-                mensagem = f"✈️ POSSÍVEL ERRO TARIFÁRIO\n\n{titulo}\n{link}"
-
-            if mensagem:
-
-                await context.bot.send_message(
-                    chat_id=CHAT_ID,
-                    text=mensagem
-                )
+                await context.bot.send_message(chat_id=CHAT_ID,text=msg)
 
                 historico.append(titulo)
 
-                salvar_historico(historico)
+                salvar(historico)
 
-                ranking[titulo] = pontuar(texto)
+                ranking[titulo] = 5
 
                 return
 
 # -----------------------------
-# MONITOR PROGRAMAS OFICIAIS
+# RADAR PROGRAMAS
 # -----------------------------
 
 async def monitor_programas(context):
 
-    for nome, url in PROGRAMAS_SITES.items():
+    for nome,url in PROGRAMAS_SITES.items():
 
         try:
 
-            r = requests.get(url, timeout=10)
+            r = requests.get(url,timeout=10)
 
-            soup = BeautifulSoup(r.text, "html.parser")
+            soup = BeautifulSoup(r.text,"html.parser")
 
             texto = soup.get_text().lower()
 
-            if "100%" in texto or "90%" in texto or "bônus" in texto:
+            if "100%" in texto or "90%" in texto:
 
                 msg = f"""
-🚨 POSSÍVEL PROMOÇÃO DETECTADA
+🚨 POSSÍVEL PROMOÇÃO
 
 Programa: {nome}
 
-Confira:
+Verifique:
 {url}
 """
 
-                await context.bot.send_message(
-                    chat_id=CHAT_ID,
-                    text=msg
-                )
+                await context.bot.send_message(chat_id=CHAT_ID,text=msg)
+
+        except:
+
+            pass
+
+# -----------------------------
+# RADAR MILHEIRO
+# -----------------------------
+
+async def monitor_milheiro(context):
+
+    for site in MILHEIRO_SITES:
+
+        try:
+
+            r = requests.get(site,timeout=10)
+
+            texto = r.text.lower()
+
+            if "r$17" in texto or "r$16" in texto or "r$15" in texto:
+
+                msg = f"""
+💰 MILHEIRO BARATO
+
+Possível oportunidade
+
+{site}
+"""
+
+                await context.bot.send_message(chat_id=CHAT_ID,text=msg)
+
+        except:
+
+            pass
+
+# -----------------------------
+# RADAR ANTECIPADO
+# -----------------------------
+
+async def radar_antecipado(context):
+
+    for url in FONTES_ANTECIPADAS:
+
+        try:
+
+            r = requests.get(url,timeout=10)
+
+            texto = r.text.lower()
+
+            if "promo" in texto or "bonus" in texto:
+
+                msg = f"""
+📡 POSSÍVEL PROMOÇÃO ANTES DOS BLOGS
+
+Fonte detectada:
+{url}
+"""
+
+                await context.bot.send_message(chat_id=CHAT_ID,text=msg)
 
         except:
 
@@ -306,29 +294,22 @@ def main():
 
     app = ApplicationBuilder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("menu", menu))
-    app.add_handler(CommandHandler("status", status))
-    app.add_handler(CommandHandler("ranking", ranking_cmd))
-    app.add_handler(CommandHandler("promocoes", promocoes))
-    app.add_handler(CommandHandler("transferencias", transferencias))
-    app.add_handler(CommandHandler("passagens", passagens))
+    app.add_handler(CommandHandler("start",start))
+    app.add_handler(CommandHandler("menu",menu))
+    app.add_handler(CommandHandler("status",status))
+    app.add_handler(CommandHandler("ranking",ranking_cmd))
 
     job = app.job_queue
 
-    job.run_repeating(
-        monitor_blogs,
-        interval=600,
-        first=20
-    )
+    job.run_repeating(monitor_blogs,interval=600,first=20)
 
-    job.run_repeating(
-        monitor_programas,
-        interval=900,
-        first=30
-    )
+    job.run_repeating(monitor_programas,interval=900,first=40)
 
-    print("Radar PRO+++ iniciado")
+    job.run_repeating(monitor_milheiro,interval=1200,first=60)
+
+    job.run_repeating(radar_antecipado,interval=1500,first=80)
+
+    print("Radar PRO MAX iniciado")
 
     app.run_polling()
 
