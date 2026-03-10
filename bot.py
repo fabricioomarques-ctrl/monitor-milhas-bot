@@ -17,49 +17,33 @@ sites = [
 ]
 
 palavras_chave = [
-
     "livelo",
     "transfer",
     "transferência",
     "bônus",
-
     "latam pass",
     "tudoazul",
     "smiles",
-
     "latam",
     "azul",
     "gol",
-
-    "bradesco",
-    "itau",
-    "c6",
-    "nubank",
-
     "passagem",
     "milhas",
-    "promoção",
-    "resgate",
+    "promoção"
 ]
 
-bonus_maximo = [
-    "100%",
-    "110%",
-    "120%"
-]
-
-bonus_alto = [
-    "80%",
-    "90%"
-]
+bonus_maximo = ["100%", "110%", "120%"]
+bonus_alto = ["80%", "90%"]
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mensagem = (
         "✈️ Radar PRO de Milhas Ativo!\n\n"
-        "Comandos:\n"
-        "/promocoes - Buscar promoções agora"
+        "Comandos:\n\n"
+        "🔥 /promocoes - Promoções gerais\n"
+        "💳 /transferencias - Transferência de pontos\n"
+        "✈️ /passagens - Promoções de passagens"
     )
 
     await update.message.reply_text(mensagem)
@@ -72,14 +56,11 @@ async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for site in sites:
 
         headers = {"User-Agent": "Mozilla/5.0"}
-
         response = requests.get(site, headers=headers)
 
         soup = BeautifulSoup(response.text, "html.parser")
 
         links = soup.find_all("a")
-
-        count = 0
 
         for link in links:
 
@@ -91,19 +72,75 @@ async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             titulo_lower = titulo.lower()
 
-            for palavra in palavras_chave:
+            if any(p in titulo_lower for p in palavras_chave):
 
-                if palavra in titulo_lower:
+                if url.startswith("http"):
 
-                    if url.startswith("http"):
+                    resposta += f"{titulo}\n{url}\n\n"
 
-                        resposta += f"{titulo}\n{url}\n\n"
+    await update.message.reply_text(resposta)
 
-                        count += 1
-                        break
 
-            if count == 5:
-                break
+async def transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    resposta = "💳 Promoções de transferência:\n\n"
+
+    for site in sites:
+
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(site, headers=headers)
+
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        links = soup.find_all("a")
+
+        for link in links:
+
+            titulo = link.text.strip()
+            url = link.get("href")
+
+            if not url:
+                continue
+
+            titulo_lower = titulo.lower()
+
+            if "transfer" in titulo_lower or "livelo" in titulo_lower:
+
+                if url.startswith("http"):
+
+                    resposta += f"{titulo}\n{url}\n\n"
+
+    await update.message.reply_text(resposta)
+
+
+async def passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    resposta = "✈️ Promoções de passagens:\n\n"
+
+    for site in sites:
+
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(site, headers=headers)
+
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        links = soup.find_all("a")
+
+        for link in links:
+
+            titulo = link.text.strip()
+            url = link.get("href")
+
+            if not url:
+                continue
+
+            titulo_lower = titulo.lower()
+
+            if "passagem" in titulo_lower:
+
+                if url.startswith("http"):
+
+                    resposta += f"{titulo}\n{url}\n\n"
 
     await update.message.reply_text(resposta)
 
@@ -115,7 +152,6 @@ async def monitorar(context: ContextTypes.DEFAULT_TYPE):
     for site in sites:
 
         headers = {"User-Agent": "Mozilla/5.0"}
-
         response = requests.get(site, headers=headers)
 
         soup = BeautifulSoup(response.text, "html.parser")
@@ -130,8 +166,6 @@ async def monitorar(context: ContextTypes.DEFAULT_TYPE):
             if not url:
                 continue
 
-            titulo_lower = titulo.lower()
-
             if titulo == ULTIMO_ALERTA:
                 continue
 
@@ -139,18 +173,9 @@ async def monitorar(context: ContextTypes.DEFAULT_TYPE):
 
                 ULTIMO_ALERTA = titulo
 
-                mensagem = f"""
-🚨 ALERTA MÁXIMO DE BÔNUS
+                mensagem = f"🚨 ALERTA MÁXIMO DE BÔNUS\n\n{titulo}\n{url}"
 
-{titulo}
-
-{url}
-"""
-
-                await context.bot.send_message(
-                    chat_id=context.job.chat_id,
-                    text=mensagem
-                )
+                await context.bot.send_message(chat_id=context.job.chat_id, text=mensagem)
 
                 return
 
@@ -158,49 +183,19 @@ async def monitorar(context: ContextTypes.DEFAULT_TYPE):
 
                 ULTIMO_ALERTA = titulo
 
-                mensagem = f"""
-🔥 BÔNUS ALTO DETECTADO
+                mensagem = f"🔥 BÔNUS ALTO DETECTADO\n\n{titulo}\n{url}"
 
-{titulo}
-
-{url}
-"""
-
-                await context.bot.send_message(
-                    chat_id=context.job.chat_id,
-                    text=mensagem
-                )
+                await context.bot.send_message(chat_id=context.job.chat_id, text=mensagem)
 
                 return
-
-            for palavra in palavras_chave:
-
-                if palavra in titulo_lower:
-
-                    if url.startswith("http"):
-
-                        ULTIMO_ALERTA = titulo
-
-                        mensagem = f"""
-✈️ Nova promoção detectada
-
-{titulo}
-
-{url}
-"""
-
-                        await context.bot.send_message(
-                            chat_id=context.job.chat_id,
-                            text=mensagem
-                        )
-
-                        return
 
 
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("promocoes", promocoes))
+app.add_handler(CommandHandler("transferencias", transferencias))
+app.add_handler(CommandHandler("passagens", passagens))
 
 job_queue = app.job_queue
 
