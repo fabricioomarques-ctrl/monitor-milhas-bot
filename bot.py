@@ -24,6 +24,10 @@ HEADERS = {
     )
 }
 
+# -----------------------------
+# FONTES
+# -----------------------------
+
 RSS_FEEDS = [
     "https://www.melhoresdestinos.com.br/feed",
     "https://passageirodeprimeira.com/feed",
@@ -50,7 +54,11 @@ MILHEIRO_SITES = [
     "https://www.hotmilhas.com.br",
 ]
 
-BONUS = ["100%", "95%", "90%", "85%", "80%", "70%", "60%", "50%"]
+# -----------------------------
+# REGRAS
+# -----------------------------
+
+BONUS_REGEX = r"\b(50|60|70|80|85|90|95|100)\s*%\b"
 
 PALAVRAS_PROMO_REAL = [
     "transferencia bonificada",
@@ -59,24 +67,30 @@ PALAVRAS_PROMO_REAL = [
     "bônus de transferência",
     "ganhe ate",
     "ganhe até",
-    "promocao valida",
-    "promoção válida",
     "campanha valida",
     "campanha válida",
+    "promocao valida",
+    "promoção válida",
+    "válido até",
+    "valido ate",
 ]
 
 PALAVRAS_PROMO_GERAIS = [
     "bonus",
     "bônus",
-    "transferencia",
-    "transferência",
-    "transferir",
     "campanha",
     "promocao",
     "promoção",
 ]
 
-IGNORAR_TEXTO = [
+PALAVRAS_TRANSFERENCIA = [
+    "transferencia",
+    "transferência",
+    "transferir pontos",
+    "transferir",
+]
+
+TERMOS_IGNORAR_TEXTO = [
     "shopping",
     "produto",
     "produtos",
@@ -87,11 +101,15 @@ IGNORAR_TEXTO = [
     "aniversário",
     "pontos por real",
     "clube livelo",
-    "cashback",
     "ofertas especiais",
+    "cashback",
+    "selecao nintendo",
+    "seleção nintendo",
+    "transferencia entre contas",
+    "transferência entre contas",
 ]
 
-ROTAS_GENERICAS = {
+ROTAS_BLOQUEADAS_EXATAS = {
     "/",
     "/parceiros",
     "/promocoes",
@@ -99,6 +117,7 @@ ROTAS_GENERICAS = {
     "/ofertas",
     "/shopping",
     "/home",
+    "/transferencia-entre-contas",
     "/transferir-pontos",
     "/transferir-pontos-cartao",
     "/pt_br/promocoes",
@@ -107,23 +126,36 @@ ROTAS_GENERICAS = {
     "/web/azul/parceiros",
 }
 
+TERMOS_BLOQUEADOS_NO_PATH = [
+    "parceiros",
+    "promocoes",
+    "promoções",
+    "ofertas",
+    "shopping",
+    "transferencia-entre-contas",
+    "transferir-pontos",
+    "transferir-pontos-cartao",
+]
+
 STOPWORDS = {
     "de", "da", "do", "das", "dos", "para", "com", "sem", "por", "em", "na", "no",
-    "nas", "nos", "e", "ou", "um", "uma", "ate", "até", "mais", "menos", "seu",
-    "sua", "suas", "seus", "valida", "válida", "campanha", "promocao", "promoção",
-    "bonus", "bônus", "transferencia", "transferência", "transferir", "pontos",
-    "milhas", "cartao", "cartão", "clube", "ganhe", "cliente", "clientes",
-    "banco", "programa", "oferta", "ofertas", "especial", "especiais",
+    "nas", "nos", "e", "ou", "um", "uma", "mais", "menos", "seu", "sua", "suas",
+    "seus", "campanha", "promocao", "promoção", "bonus", "bônus", "transferencia",
+    "transferência", "transferir", "pontos", "milhas", "cartao", "cartão", "clube",
+    "ganhe", "cliente", "clientes", "banco", "programa", "oferta", "ofertas",
+    "especial", "especiais", "valida", "válida", "ate", "até",
 }
 
+TTL_SINAL = 12 * 60 * 60  # 12 horas
+
 # -----------------------------
-# HISTÓRICO / ESTADO
+# ESTADO
 # -----------------------------
 
-def estrutura_padrao():
+def estado_padrao():
     return {
         "sent": [],
-        "signals": {},
+        "signals": {}
     }
 
 
@@ -132,22 +164,17 @@ def carregar():
         with open(ARQUIVO, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        # Migração automática caso o arquivo antigo seja uma lista simples
         if isinstance(data, list):
-            return {
-                "sent": data,
-                "signals": {},
-            }
+            return {"sent": data, "signals": {}}
 
         if isinstance(data, dict):
             data.setdefault("sent", [])
             data.setdefault("signals", {})
             return data
 
-        return estrutura_padrao()
-
+        return estado_padrao()
     except Exception:
-        return estrutura_padrao()
+        return estado_padrao()
 
 
 def salvar():
@@ -157,7 +184,6 @@ def salvar():
 
 estado = carregar()
 ranking = {}
-
 
 # -----------------------------
 # HELPERS
@@ -176,11 +202,10 @@ def limpar_espacos(texto: str) -> str:
 
 
 def extrair_bonus(texto: str) -> str:
-    texto = normalizar(texto)
-    achados = re.findall(r"\b(\d{2,3})\s*%", texto)
+    txt = normalizar(texto)
+    achados = re.findall(BONUS_REGEX, txt)
     if not achados:
         return ""
-    # Pega o maior percentual encontrado
     maior = max(int(x) for x in achados)
     return f"{maior}%"
 
@@ -191,31 +216,29 @@ def url_absoluta(base: str, href: str) -> str:
     return urljoin(base, href)
 
 
+def caminho_url(link: str) -> str:
+    try:
+        parsed = urlparse(link)
+        path = (parsed.path or "/").strip().lower()
+        return path if path else "/"
+    except Exception:
+        return "/"
+
+
 def link_generico(link: str) -> bool:
     if not link:
         return True
 
-    parsed = urlparse(link)
-    path = (parsed.path or "/").strip().lower()
+    path = caminho_url(link)
 
-    if path in ROTAS_GENERICAS:
+    if path in ROTAS_BLOQUEADAS_EXATAS:
+        return True
+
+    if any(t in path for t in TERMOS_BLOQUEADOS_NO_PATH):
         return True
 
     partes = [p for p in path.split("/") if p]
-
-    # Rotas muito curtas costumam ser páginas fixas
-    if len(partes) <= 1 and path not in {"/transferencia-bonus", "/bonus-transferencia"}:
-        return True
-
-    termos_genericos = [
-        "parceiros",
-        "promocoes",
-        "promoções",
-        "ofertas",
-        "shopping",
-        "home",
-    ]
-    if any(t in path for t in termos_genericos):
+    if len(partes) <= 1:
         return True
 
     return False
@@ -223,7 +246,513 @@ def link_generico(link: str) -> bool:
 
 def texto_ruim(texto: str) -> bool:
     txt = normalizar(texto)
-    return any(p in txt for p in IGNORAR_TEXTO)
+    return any(t in txt for t in TERMOS_IGNORAR_TEXTO)
 
 
-def tem_sinal_promocional(texto: str
+def tem_sinal_promocional(texto: str) -> bool:
+    txt = normalizar(texto)
+
+    tem_bonus = extrair_bonus(txt) != ""
+    tem_real = any(p in txt for p in PALAVRAS_PROMO_REAL)
+    tem_geral = any(p in txt for p in PALAVRAS_PROMO_GERAIS)
+    tem_transfer = any(p in txt for p in PALAVRAS_TRANSFERENCIA)
+
+    # Regras mais rígidas:
+    # 1) bônus + transferência
+    # 2) frase real de campanha
+    # 3) bônus + campanha/promoção
+    if tem_bonus and tem_transfer:
+        return True
+
+    if tem_real:
+        return True
+
+    if tem_bonus and tem_geral:
+        return True
+
+    return False
+
+
+def extrair_tokens_relevantes(texto: str):
+    txt = normalizar(texto)
+    palavras = re.findall(r"[a-z0-9]{4,}", txt)
+    tokens = []
+    for p in palavras:
+        if p in STOPWORDS:
+            continue
+        if p.isdigit():
+            continue
+        if p not in tokens:
+            tokens.append(p)
+    return tokens[:6]
+
+
+def montar_chave_programa(programa: str, texto: str, link: str) -> str:
+    bonus = extrair_bonus(texto)
+    tokens = extrair_tokens_relevantes(texto)
+    caminho = caminho_url(link)
+    base = f"{programa}|{bonus}|{'-'.join(tokens)}|{caminho}"
+    return normalizar(base)
+
+
+def montar_chave_blog(programa: str, texto: str) -> str:
+    bonus = extrair_bonus(texto)
+    tokens = extrair_tokens_relevantes(texto)
+    base = f"{programa}|{bonus}|{'-'.join(tokens)}"
+    return normalizar(base)
+
+
+def programa_no_texto(texto: str) -> str:
+    txt = normalizar(texto)
+
+    if "livelo" in txt:
+        return "Livelo"
+    if "smiles" in txt:
+        return "Smiles"
+    if "latam" in txt or "latam pass" in txt:
+        return "LATAM"
+    if "azul" in txt or "tudoazul" in txt:
+        return "TudoAzul"
+
+    return ""
+
+
+def programa_da_url(url: str) -> str:
+    txt = normalizar(url)
+
+    if "livelo" in txt:
+        return "Livelo"
+    if "smiles" in txt:
+        return "Smiles"
+    if "latampass" in txt or "latam" in txt:
+        return "LATAM"
+    if "tudoazul" in txt or "voeazul" in txt or "azul" in txt:
+        return "TudoAzul"
+
+    return ""
+
+
+def ja_enviado(chave: str) -> bool:
+    return chave in estado["sent"]
+
+
+def registrar_envio(chave: str):
+    if chave not in estado["sent"]:
+        estado["sent"].append(chave)
+        salvar()
+
+
+def limpar_sinais_antigos():
+    agora = time.time()
+    sinais = estado.get("signals", {})
+    chaves_remover = []
+
+    for k, dados in sinais.items():
+        ultimo = dados.get("updated_at", 0)
+        if agora - ultimo > TTL_SINAL:
+            chaves_remover.append(k)
+
+    for k in chaves_remover:
+        sinais.pop(k, None)
+
+    if chaves_remover:
+        salvar()
+
+
+def registrar_sinal(chave_evento: str, fonte: str, payload: dict):
+    sinais = estado.setdefault("signals", {})
+    agora = time.time()
+
+    if chave_evento not in sinais:
+        sinais[chave_evento] = {
+            "sources": [],
+            "payload": payload,
+            "updated_at": agora,
+        }
+
+    if fonte not in sinais[chave_evento]["sources"]:
+        sinais[chave_evento]["sources"].append(fonte)
+
+    sinais[chave_evento]["payload"] = payload
+    sinais[chave_evento]["updated_at"] = agora
+    salvar()
+
+
+def total_fontes_confirmadas(chave_evento: str) -> int:
+    sinais = estado.get("signals", {})
+    if chave_evento not in sinais:
+        return 0
+    return len(sinais[chave_evento].get("sources", []))
+
+
+async def enviar_confirmado_se_precisar(context, chave_evento: str):
+    sinal = estado.get("signals", {}).get(chave_evento)
+    if not sinal:
+        return
+
+    if total_fontes_confirmadas(chave_evento) < 2:
+        return
+
+    chave_envio = f"confirmado|{chave_evento}"
+    if ja_enviado(chave_envio):
+        return
+
+    payload = sinal["payload"]
+    programa = payload.get("programa", "Programa")
+    titulo = payload.get("titulo", "Promoção")
+    link = payload.get("link", "")
+    bonus = payload.get("bonus", "")
+    fontes = ", ".join(sinal.get("sources", []))
+
+    texto_bonus = f"\nBônus detectado: {bonus}" if bonus else ""
+
+    msg = (
+        f"✅ PROMOÇÃO CONFIRMADA EM 2 FONTES\n\n"
+        f"Programa: {programa}\n"
+        f"Título: {titulo}{texto_bonus}\n"
+        f"Fontes: {fontes}\n"
+    )
+
+    if link:
+        msg += f"\nLink:\n{link}"
+
+    await context.bot.send_message(chat_id=CHAT_ID, text=msg)
+    registrar_envio(chave_envio)
+    ranking[f"{programa} confirmado"] = 15
+
+
+def identificar_programa(nome_hint: str, texto: str, link: str) -> str:
+    if nome_hint:
+        return nome_hint
+
+    por_texto = programa_no_texto(texto)
+    if por_texto:
+        return por_texto
+
+    por_url = programa_da_url(link)
+    if por_url:
+        return por_url
+
+    return "Programa"
+
+
+def extrair_texto_link(tag) -> str:
+    partes = []
+
+    texto_tag = limpar_espacos(tag.get_text(" ", strip=True))
+    if texto_tag:
+        partes.append(texto_tag)
+
+    title = limpar_espacos(tag.get("title", ""))
+    aria = limpar_espacos(tag.get("aria-label", ""))
+
+    if title:
+        partes.append(title)
+    if aria:
+        partes.append(aria)
+
+    return limpar_espacos(" | ".join(partes))
+
+
+# -----------------------------
+# COMANDOS
+# -----------------------------
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = """
+✈️ Radar de Milhas PRO+++ Ultra
+
+/menu
+/ranking
+/status
+"""
+    await update.message.reply_text(texto)
+
+
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = """
+📡 MENU
+
+/ranking
+/status
+"""
+    await update.message.reply_text(texto)
+
+
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    confirmados = 0
+    for k in estado.get("sent", []):
+        if str(k).startswith("confirmado|"):
+            confirmados += 1
+
+    texto = f"""
+🟢 RADAR ONLINE
+
+Promoções detectadas hoje: {len(ranking)}
+Promoções confirmadas: {confirmados}
+
+Detectores ativos:
+
+✔ blogs
+✔ programas
+✔ milheiro
+✔ radar antecipado
+✔ confirmação em 2 fontes
+"""
+    await update.message.reply_text(texto)
+
+
+async def ranking_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not ranking:
+        await update.message.reply_text("Nenhuma promoção detectada ainda.")
+        return
+
+    texto = "🏆 Ranking promoções\n\n"
+    ordenado = sorted(ranking.items(), key=lambda x: x[1], reverse=True)
+
+    pos = 1
+    for titulo, score in ordenado[:10]:
+        texto += f"{pos}️⃣ {titulo}\n"
+        pos += 1
+
+    await update.message.reply_text(texto)
+
+
+# -----------------------------
+# RADAR BLOGS
+# -----------------------------
+
+async def monitor_blogs(context):
+    limpar_sinais_antigos()
+
+    for feed in RSS_FEEDS:
+        try:
+            noticias = feedparser.parse(feed)
+
+            for post in noticias.entries[:8]:
+                titulo = limpar_espacos(getattr(post, "title", ""))
+                link = limpar_espacos(getattr(post, "link", ""))
+
+                if not titulo or not link:
+                    continue
+
+                txt = normalizar(titulo)
+
+                if texto_ruim(txt):
+                    continue
+
+                if not tem_sinal_promocional(txt):
+                    continue
+
+                programa = programa_no_texto(titulo)
+                bonus = extrair_bonus(titulo)
+                chave_evento = montar_chave_blog(programa or "Blog", titulo)
+
+                registrar_sinal(
+                    chave_evento=chave_evento,
+                    fonte="blog",
+                    payload={
+                        "programa": programa or "Programa",
+                        "titulo": titulo,
+                        "link": link,
+                        "bonus": bonus,
+                    },
+                )
+
+                await enviar_confirmado_se_precisar(context, chave_evento)
+
+                chave_envio = f"blog|{chave_evento}"
+                if ja_enviado(chave_envio):
+                    continue
+
+                msg = f"🔥 SINAL EM BLOG\n\n{titulo}\n{link}"
+                await context.bot.send_message(chat_id=CHAT_ID, text=msg)
+
+                registrar_envio(chave_envio)
+                ranking[titulo[:60]] = 10
+                return
+
+        except Exception:
+            pass
+
+
+# -----------------------------
+# RADAR PROGRAMAS
+# -----------------------------
+
+async def monitor_programas(context):
+    limpar_sinais_antigos()
+
+    for nome, url in PROGRAMAS_SITES.items():
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=15)
+            soup = BeautifulSoup(r.text, "html.parser")
+
+            links = soup.find_all("a", href=True)
+
+            for tag in links:
+                href = tag.get("href", "").strip()
+                link = url_absoluta(url, href)
+
+                if not link:
+                    continue
+
+                if link_generico(link):
+                    continue
+
+                texto = extrair_texto_link(tag)
+                texto_norm = normalizar(texto)
+
+                if not texto_norm:
+                    continue
+
+                if texto_ruim(texto_norm):
+                    continue
+
+                if not tem_sinal_promocional(texto_norm):
+                    continue
+
+                programa = identificar_programa(nome, texto, link)
+                bonus = extrair_bonus(texto)
+
+                chave_evento = montar_chave_programa(programa, texto, link)
+
+                registrar_sinal(
+                    chave_evento=chave_evento,
+                    fonte="programa",
+                    payload={
+                        "programa": programa,
+                        "titulo": texto[:140],
+                        "link": link,
+                        "bonus": bonus,
+                    },
+                )
+
+                await enviar_confirmado_se_precisar(context, chave_evento)
+
+                chave_envio = f"programa|{chave_evento}"
+                if ja_enviado(chave_envio):
+                    continue
+
+                msg = (
+                    f"🚨 POSSÍVEL PROMOÇÃO\n\n"
+                    f"Programa: {programa}\n\n"
+                    f"Título detectado:\n{texto[:180]}\n\n"
+                    f"Link detectado:\n{link}"
+                )
+
+                await context.bot.send_message(chat_id=CHAT_ID, text=msg)
+
+                registrar_envio(chave_envio)
+                ranking[f"{programa} sinal"] = 8
+                return
+
+        except Exception:
+            pass
+
+
+# -----------------------------
+# RADAR MILHEIRO
+# -----------------------------
+
+async def monitor_milheiro(context):
+    for site in MILHEIRO_SITES:
+        try:
+            r = requests.get(site, headers=HEADERS, timeout=15)
+            texto = normalizar(r.text)
+
+            if "r$ 15" in texto or "r$15" in texto or "r$ 16" in texto or "r$16" in texto or "r$ 17" in texto or "r$17" in texto:
+                chave = f"milheiro|{site}"
+
+                if ja_enviado(chave):
+                    continue
+
+                msg = (
+                    f"💰 MILHEIRO BARATO\n\n"
+                    f"Possível oportunidade detectada\n\n"
+                    f"{site}"
+                )
+
+                await context.bot.send_message(chat_id=CHAT_ID, text=msg)
+
+                registrar_envio(chave)
+                ranking["milheiro barato"] = 6
+
+        except Exception:
+            pass
+
+
+# -----------------------------
+# RADAR ANTECIPADO
+# -----------------------------
+
+async def radar_antecipado(context):
+    limpar_sinais_antigos()
+
+    for nome, url in FONTES_ANTECIPADAS.items():
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=15)
+            soup = BeautifulSoup(r.text, "html.parser")
+
+            texto_pagina = limpar_espacos(soup.get_text(" ", strip=True))
+            texto_norm = normalizar(texto_pagina)
+
+            # Radar antecipado mais rígido:
+            # só considera se tiver bônus + transferência
+            tem_bonus = extrair_bonus(texto_norm) != ""
+            tem_transfer = any(p in texto_norm for p in PALAVRAS_TRANSFERENCIA)
+            tem_frase_real = any(p in texto_norm for p in PALAVRAS_PROMO_REAL)
+
+            if not ((tem_bonus and tem_transfer) or tem_frase_real):
+                continue
+
+            # Bloqueia páginas genéricas de parceiros como alerta isolado
+            # Aqui ele apenas registra sinal, e só vira forte se bater com outra fonte.
+            programa = nome
+            bonus = extrair_bonus(texto_norm)
+            chave_evento = montar_chave_blog(programa, f"{programa} {bonus} antecipado")
+
+            registrar_sinal(
+                chave_evento=chave_evento,
+                fonte="antecipado",
+                payload={
+                    "programa": programa,
+                    "titulo": f"Sinal antecipado em parceiros - {programa}",
+                    "link": url,
+                    "bonus": bonus,
+                },
+            )
+
+            await enviar_confirmado_se_precisar(context, chave_evento)
+
+            # Não envia alerta isolado de /parceiros para evitar falso positivo
+            ranking[f"{programa} antecipado"] = 4
+
+        except Exception:
+            pass
+
+
+# -----------------------------
+# MAIN
+# -----------------------------
+
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("menu", menu))
+    app.add_handler(CommandHandler("status", status))
+    app.add_handler(CommandHandler("ranking", ranking_cmd))
+
+    job = app.job_queue
+    job.run_repeating(monitor_blogs, interval=600, first=20)
+    job.run_repeating(monitor_programas, interval=900, first=40)
+    job.run_repeating(monitor_milheiro, interval=1200, first=60)
+    job.run_repeating(radar_antecipado, interval=1500, first=80)
+
+    print("Radar PRO+++ Ultra iniciado")
+    app.run_polling()
+
+
+if __name__ == "__main__":
+    main()
