@@ -40,18 +40,26 @@ palavras_chave = [
     "milhas",
     "promoção",
     "resgate",
-    "feirão",
+]
+
+bonus_maximo = [
+    "100%",
+    "110%",
+    "120%"
+]
+
+bonus_alto = [
+    "80%",
+    "90%"
 ]
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mensagem = (
-        "✈️ Radar de Milhas Ativo!\n\n"
+        "✈️ Radar PRO de Milhas Ativo!\n\n"
         "Comandos:\n"
-        "/promocoes - Buscar promoções agora\n"
-        "/transferencias - Promoções de transferência\n"
-        "/passagens - Promoções de passagens"
+        "/promocoes - Buscar promoções agora"
     )
 
     await update.message.reply_text(mensagem)
@@ -124,24 +132,69 @@ async def monitorar(context: ContextTypes.DEFAULT_TYPE):
 
             titulo_lower = titulo.lower()
 
+            if titulo == ULTIMO_ALERTA:
+                continue
+
+            if any(bonus in titulo for bonus in bonus_maximo):
+
+                ULTIMO_ALERTA = titulo
+
+                mensagem = f"""
+🚨 ALERTA MÁXIMO DE BÔNUS
+
+{titulo}
+
+{url}
+"""
+
+                await context.bot.send_message(
+                    chat_id=context.job.chat_id,
+                    text=mensagem
+                )
+
+                return
+
+            if any(bonus in titulo for bonus in bonus_alto):
+
+                ULTIMO_ALERTA = titulo
+
+                mensagem = f"""
+🔥 BÔNUS ALTO DETECTADO
+
+{titulo}
+
+{url}
+"""
+
+                await context.bot.send_message(
+                    chat_id=context.job.chat_id,
+                    text=mensagem
+                )
+
+                return
+
             for palavra in palavras_chave:
 
                 if palavra in titulo_lower:
 
                     if url.startswith("http"):
 
-                        if titulo != ULTIMO_ALERTA:
+                        ULTIMO_ALERTA = titulo
 
-                            ULTIMO_ALERTA = titulo
+                        mensagem = f"""
+✈️ Nova promoção detectada
 
-                            mensagem = f"🚨 Nova promoção detectada!\n\n{titulo}\n{url}"
+{titulo}
 
-                            await context.bot.send_message(
-                                chat_id=context.job.chat_id,
-                                text=mensagem
-                            )
+{url}
+"""
 
-                            return
+                        await context.bot.send_message(
+                            chat_id=context.job.chat_id,
+                            text=mensagem
+                        )
+
+                        return
 
 
 app = ApplicationBuilder().token(TOKEN).build()
