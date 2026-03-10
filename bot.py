@@ -17,18 +17,34 @@ async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     url = "https://www.melhoresdestinos.com.br/"
 
-    response = requests.get(url)
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    response = requests.get(url, headers=headers)
     soup = BeautifulSoup(response.text, "html.parser")
 
-    posts = soup.select("h3 a")
+    posts = soup.find_all("a")
 
     resposta = "🔥 Promoções encontradas:\n\n"
 
-    for post in posts[:5]:
-        titulo = post.text.strip()
-        link = post["href"]
+    count = 0
 
-        resposta += f"{titulo}\n{link}\n\n"
+    for post in posts:
+        titulo = post.text.strip()
+        link = post.get("href")
+
+        if "milhas" in titulo.lower() or "passagem" in titulo.lower():
+
+            if link.startswith("http"):
+                resposta += f"{titulo}\n{link}\n\n"
+                count += 1
+
+        if count == 5:
+            break
+
+    if count == 0:
+        resposta += "Nenhuma promoção encontrada agora."
 
     await update.message.reply_text(resposta)
 
