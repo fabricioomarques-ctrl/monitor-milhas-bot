@@ -1,157 +1,174 @@
 import os
+import json
 import feedparser
+from datetime import datetime
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# RSS monitorados
-
 RSS_FEEDS = [
-
 "https://www.melhoresdestinos.com.br/feed",
 "https://passageirodeprimeira.com/feed",
-"https://www.melhorescartoes.com.br/feed",
-"https://passagensimperdiveis.com.br/feed"
-
+"https://pontospravoar.com/feed",
+"https://estevaopelomundo.com.br/feed"
 ]
 
-# histórico anti duplicação
-historico = set()
+PROGRAMAS = ["livelo","smiles","latam","tudoazul","azul"]
+BANCOS = ["itau","itaú","bradesco","santander","banco do brasil","c6","inter"]
+BONUS = ["100%","90%","85%","80%"]
+MILHEIRO = ["milheiro","r$14","r$15","r$16","r$17"]
+ERRO = ["erro tarifario","tarifa erro","passagem absurda"]
 
-# palavras monitoradas
+ARQUIVO = "promocoes_enviadas.json"
 
-PROGRAMAS = [
-"livelo",
-"smiles",
-"latam",
-"azul",
-"tudoazul"
-]
+def carregar_historico():
+    try:
+        with open(ARQUIVO,"r") as f:
+            return json.load(f)
+    except:
+        return []
 
-BANCOS = [
-"itau",
-"itaú",
-"bradesco",
-"santander",
-"banco do brasil"
-]
+def salvar_historico(data):
+    with open(ARQUIVO,"w") as f:
+        json.dump(data,f)
 
-BONUS = [
-"100%",
-"90%",
-"85%",
-"80%"
-]
+historico = carregar_historico()
+ranking = {}
 
-MILHEIRO = [
-"milheiro",
-"r$14",
-"r$15",
-"r$16"
-]
-
-ERRO = [
-"erro tarifario",
-"tarifa erro",
-"passagem absurda"
-]
-
-# ============================
+# ------------------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     texto = (
-
 "✈️ Radar de Milhas PRO+++\n\n"
-
 "/menu\n"
 "/promocoes\n"
 "/transferencias\n"
 "/passagens\n"
-"/status\n"
-
+"/ranking\n"
+"/status"
 )
 
     await update.message.reply_text(texto)
 
-# ============================
+# ------------------
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     texto = (
-
 "📡 MENU RADAR\n\n"
-
 "/promocoes\n"
 "/transferencias\n"
 "/passagens\n"
+"/ranking\n"
 "/status"
-
 )
 
     await update.message.reply_text(texto)
 
-# ============================
+# ------------------
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     texto = (
-
-"🟢 RADAR ATIVO\n\n"
-
+"🟢 RADAR ONLINE\n\n"
 "Monitorando:\n"
-
-"Programas\n"
-"Livelo\n"
-"Smiles\n"
-"LATAM Pass\n"
-"TudoAzul\n\n"
-
-"Bancos\n"
-"Itaú\n"
-"Bradesco\n"
-"Santander\n"
-"Banco do Brasil\n\n"
-
-"Blogs de milhas"
-
+"Blogs de milhas\n"
+"Programas de pontos\n"
+"Bancos\n\n"
+"Promoções detectadas hoje: "
++ str(len(ranking))
 )
 
     await update.message.reply_text(texto)
 
-# ============================
+# ------------------
+
+async def ranking_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    if not ranking:
+        await update.message.reply_text("Nenhuma promoção detectada ainda hoje.")
+        return
+
+    texto = "🏆 Ranking de promoções do dia\n\n"
+
+    ordenado = sorted(ranking.items(), key=lambda x: x[1], reverse=True)
+
+    pos = 1
+
+    for titulo,score in ordenado[:5]:
+
+        texto += f"{pos}️⃣ {titulo}\n"
+
+        pos += 1
+
+    await update.message.reply_text(texto)
+
+# ------------------
+
+async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    await update.message.reply_text("🔎 Radar verificando promoções...")
+
+# ------------------
 
 async def transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     texto = (
-
-"💳 Transferências monitoradas\n\n"
-
-"Livelo → Smiles\n"
-"Livelo → LATAM\n"
-"Livelo → Azul\n\n"
-
+"💳 Monitorando transferências bonificadas\n\n"
+"Livelo\n"
+"Smiles\n"
+"LATAM Pass\n"
+"TudoAzul\n\n"
 "Bancos\n"
 "Itaú\n"
 "Bradesco\n"
 "Santander\n"
-"Banco do Brasil"
-
+"Banco do Brasil\n"
+"C6\n"
+"Inter"
 )
 
     await update.message.reply_text(texto)
 
-# ============================
+# ------------------
 
-async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    await update.message.reply_text("🔎 Buscando promoções...")
+    texto = (
+"✈️ Monitor de passagens ativo\n\n"
+"Detectando:\n"
+"Erro tarifário\n"
+"Promoções relâmpago\n"
+"Milheiro barato"
+)
 
-# ============================
+    await update.message.reply_text(texto)
+
+# ------------------
+
+def pontuar(texto):
+
+    score = 1
+
+    if any(b in texto for b in BONUS):
+        score += 5
+
+    if any(m in texto for m in MILHEIRO):
+        score += 3
+
+    if any(e in texto for e in ERRO):
+        score += 4
+
+    return score
+
+# ------------------
 
 async def monitor(context: ContextTypes.DEFAULT_TYPE):
+
+    global historico
 
     for feed in RSS_FEEDS:
 
@@ -179,7 +196,7 @@ async def monitor(context: ContextTypes.DEFAULT_TYPE):
 
             if any(banco in texto for banco in BANCOS):
 
-                mensagem = f"💳 Transferência de banco detectada\n\n{titulo}\n{link}"
+                mensagem = f"💳 Transferência detectada\n\n{titulo}\n{link}"
 
             if any(m in texto for m in MILHEIRO):
 
@@ -187,7 +204,7 @@ async def monitor(context: ContextTypes.DEFAULT_TYPE):
 
             if any(e in texto for e in ERRO):
 
-                mensagem = f"✈️ Possível erro tarifário\n\n{titulo}\n{link}"
+                mensagem = f"✈️ POSSÍVEL ERRO TARIFÁRIO\n\n{titulo}\n{link}"
 
             if mensagem:
 
@@ -196,11 +213,14 @@ async def monitor(context: ContextTypes.DEFAULT_TYPE):
                     text=mensagem
                 )
 
-                historico.add(titulo)
+                historico.append(titulo)
+                salvar_historico(historico)
+
+                ranking[titulo] = pontuar(texto)
 
                 return
 
-# ============================
+# ------------------
 
 def main():
 
@@ -209,8 +229,10 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("menu", menu))
     app.add_handler(CommandHandler("status", status))
+    app.add_handler(CommandHandler("ranking", ranking_cmd))
     app.add_handler(CommandHandler("promocoes", promocoes))
     app.add_handler(CommandHandler("transferencias", transferencias))
+    app.add_handler(CommandHandler("passagens", passagens))
 
     job = app.job_queue
 
