@@ -4,39 +4,56 @@ import json
 import requests
 import feedparser
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from urllib.parse import urljoin
 
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
-CANAL_ID = os.getenv("CANAL_ID")
+TOKEN=os.getenv("TELEGRAM_TOKEN")
+CHAT_ID=os.getenv("CHAT_ID")
+CANAL_ID=os.getenv("CANAL_ID")
 
-ARQUIVO = "historico.json"
+ARQUIVO="historico.json"
 
-HEADERS = {"User-Agent": "Mozilla/5.0"}
+HEADERS={"User-Agent":"Mozilla/5.0"}
 
-RSS_FEEDS = [
+# BLOGS
+RSS_FEEDS=[
 "https://www.melhoresdestinos.com.br/feed",
 "https://passageirodeprimeira.com/feed",
 "https://pontospravoar.com/feed"
 ]
 
-PROGRAMAS = {
+# PROGRAMAS
+PROGRAMAS={
 "Livelo":"https://www.livelo.com.br/promocoes",
 "Smiles":"https://www.smiles.com.br/promocoes",
 "LATAM":"https://www.latampass.com/pt_br/promocoes",
 "TudoAzul":"https://tudoazul.voeazul.com.br/web/azul/promocoes"
 }
 
+# MILHEIRO
 MILHEIRO=[
 "https://www.maxmilhas.com.br",
 "https://www.hotmilhas.com.br"
 ]
 
-historico={}
-ranking={}
+PALAVRAS_VALIDAS=[
+"milhas","milha","transfer","bônus","bonus",
+"smiles","livelo","latam","tudoazul"
+]
 
+PALAVRAS_BLOQUEADAS=[
+"hotel","resort","pacote","seguro",
+"cruzeiro","ingresso","shopping"
+]
+
+BONUS_REGEX=r"(30|40|50|60|70|80|90|100)%"
+
+ranking={}
+historico={}
+eventos={}
+
+# carregar histórico
 try:
     with open(ARQUIVO) as f:
         historico=json.load(f)
@@ -46,31 +63,6 @@ except:
 def salvar():
     with open(ARQUIVO,"w") as f:
         json.dump(historico,f)
-
-# FILTRO ULTRA
-PALAVRAS_VALIDAS=[
-"milhas",
-"milha",
-"transfer",
-"bônus",
-"bonus",
-"latam",
-"smiles",
-"livelo",
-"tudoazul"
-]
-
-PALAVRAS_BLOQUEADAS=[
-"hotel",
-"resort",
-"ingresso",
-"pacote",
-"seguro",
-"cvc",
-"shopping"
-]
-
-BONUS_REGEX=r"(30|40|50|60|70|80|90|100)%"
 
 def filtro(txt):
 
@@ -84,7 +76,6 @@ def filtro(txt):
 
     return False
 
-# CLASSIFICADOR
 def classificar(txt):
 
     m=re.search(BONUS_REGEX,txt)
@@ -109,15 +100,21 @@ async def enviar(context,msg):
     if CANAL_ID:
         await context.bot.send_message(chat_id=CANAL_ID,text=msg)
 
+def registrar_evento(chave,fonte):
+
+    if chave not in eventos:
+        eventos[chave]=set()
+
+    eventos[chave].add(fonte)
+
+    return len(eventos[chave])
+
 async def start(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
     texto="""
 ✈️ Radar de Milhas PRO MAX
 
 /menu
-/promocoes
-/transferencias
-/passagens
 /ranking
 /status
 """
@@ -129,9 +126,6 @@ async def menu(update:Update,context:ContextTypes.DEFAULT_TYPE):
     texto="""
 📡 MENU
 
-/promocoes
-/transferencias
-/passagens
 /ranking
 /status
 """
@@ -144,7 +138,12 @@ async def status(update:Update,context:ContextTypes.DEFAULT_TYPE):
 🟢 Radar online
 
 Promoções detectadas: {len(ranking)}
-Fontes monitoradas: {len(RSS_FEEDS)+len(PROGRAMAS)+len(MILHEIRO)}
+
+Detectores ativos
+✔ blogs
+✔ programas
+✔ milheiro
+✔ confirmação múltipla
 """
 
     await update.message.reply_text(texto)
@@ -183,10 +182,17 @@ async def blogs(context):
                 if link in historico:
                     continue
 
+                chave=titulo.lower()
+
+                fontes=registrar_evento(chave,"blog")
+
+                if fontes<2:
+                    continue
+
                 nivel=classificar(titulo)
 
                 msg=f"""
-🔥 Promoção detectada
+🔥 PROMOÇÃO CONFIRMADA
 
 {titulo}
 
@@ -230,10 +236,17 @@ async def programas(context):
                 if link in historico:
                     continue
 
+                chave=txt.lower()
+
+                fontes=registrar_evento(chave,"programa")
+
+                if fontes<2:
+                    continue
+
                 nivel=classificar(txt)
 
                 msg=f"""
-⚡ Promoção detectada
+⚡ PROMOÇÃO CONFIRMADA
 
 Programa: {nome}
 
@@ -300,9 +313,10 @@ def main():
 
     job=app.job_queue
 
-    job.run_repeating(blogs,interval=600,first=10)
-    job.run_repeating(programas,interval=900,first=20)
-    job.run_repeating(milheiro,interval=1200,first=30)
+    # modo estável (10 min)
+    job.run_repeating(blogs,interval=600,first=20)
+    job.run_repeating(programas,interval=600,first=30)
+    job.run_repeating(milheiro,interval=600,first=40)
 
     print("Radar PRO MAX iniciado")
 
