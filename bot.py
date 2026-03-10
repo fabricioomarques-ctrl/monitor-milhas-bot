@@ -1,95 +1,132 @@
 import os
 import json
 import feedparser
-from datetime import datetime
+import requests
+from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
+ARQUIVO = "promocoes_enviadas.json"
+
+# -----------------------------
+# SITES RSS (BLOGS)
+# -----------------------------
+
 RSS_FEEDS = [
+
 "https://www.melhoresdestinos.com.br/feed",
 "https://passageirodeprimeira.com/feed",
 "https://pontospravoar.com/feed",
 "https://estevaopelomundo.com.br/feed"
+
 ]
 
-PROGRAMAS = ["livelo","smiles","latam","tudoazul","azul"]
-BANCOS = ["itau","itaú","bradesco","santander","banco do brasil","c6","inter"]
+# -----------------------------
+# SITES OFICIAIS PROGRAMAS
+# -----------------------------
+
+PROGRAMAS_SITES = {
+
+"Livelo": "https://www.livelo.com.br/ofertas",
+"Smiles": "https://www.smiles.com.br/promocoes",
+"LATAM Pass": "https://www.latampass.com/pt_br/promocoes",
+"TudoAzul": "https://tudoazul.voeazul.com.br/web/azul/promocoes"
+
+}
+
+PROGRAMAS = ["livelo","smiles","latam","azul"]
+BANCOS = ["itau","itaú","bradesco","santander","inter","c6"]
 BONUS = ["100%","90%","85%","80%"]
 MILHEIRO = ["milheiro","r$14","r$15","r$16","r$17"]
-ERRO = ["erro tarifario","tarifa erro","passagem absurda"]
+ERRO = ["erro tarifario","tarifa erro"]
 
-ARQUIVO = "promocoes_enviadas.json"
+ranking = {}
+
+# -----------------------------
+# HISTÓRICO
+# -----------------------------
 
 def carregar_historico():
+
     try:
+
         with open(ARQUIVO,"r") as f:
             return json.load(f)
+
     except:
+
         return []
 
 def salvar_historico(data):
+
     with open(ARQUIVO,"w") as f:
         json.dump(data,f)
 
 historico = carregar_historico()
-ranking = {}
 
-# ------------------
+# -----------------------------
+# COMANDOS TELEGRAM
+# -----------------------------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    texto = (
-"✈️ Radar de Milhas PRO+++\n\n"
-"/menu\n"
-"/promocoes\n"
-"/transferencias\n"
-"/passagens\n"
-"/ranking\n"
-"/status"
-)
+    texto = """
+✈️ Radar de Milhas PRO+++
+
+/menu
+/promocoes
+/transferencias
+/passagens
+/ranking
+/status
+"""
 
     await update.message.reply_text(texto)
 
-# ------------------
+# -----------------------------
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    texto = (
-"📡 MENU RADAR\n\n"
-"/promocoes\n"
-"/transferencias\n"
-"/passagens\n"
-"/ranking\n"
-"/status"
-)
+    texto = """
+📡 MENU RADAR
+
+/promocoes
+/transferencias
+/passagens
+/ranking
+/status
+"""
 
     await update.message.reply_text(texto)
 
-# ------------------
+# -----------------------------
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    texto = (
-"🟢 RADAR ONLINE\n\n"
-"Monitorando:\n"
-"Blogs de milhas\n"
-"Programas de pontos\n"
-"Bancos\n\n"
-"Promoções detectadas hoje: "
-+ str(len(ranking))
-)
+    texto = f"""
+🟢 RADAR ONLINE
+
+Monitorando:
+
+Blogs de milhas
+Programas de pontos
+Bancos
+
+Promoções detectadas hoje: {len(ranking)}
+"""
 
     await update.message.reply_text(texto)
 
-# ------------------
+# -----------------------------
 
 async def ranking_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not ranking:
-        await update.message.reply_text("Nenhuma promoção detectada ainda hoje.")
+
+        await update.message.reply_text("Nenhuma promoção detectada hoje.")
         return
 
     texto = "🏆 Ranking de promoções do dia\n\n"
@@ -106,48 +143,54 @@ async def ranking_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(texto)
 
-# ------------------
+# -----------------------------
 
 async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("🔎 Radar verificando promoções...")
 
-# ------------------
+# -----------------------------
 
 async def transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    texto = (
-"💳 Monitorando transferências bonificadas\n\n"
-"Livelo\n"
-"Smiles\n"
-"LATAM Pass\n"
-"TudoAzul\n\n"
-"Bancos\n"
-"Itaú\n"
-"Bradesco\n"
-"Santander\n"
-"Banco do Brasil\n"
-"C6\n"
-"Inter"
-)
+    texto = """
+💳 Monitor de transferências ativo
+
+Livelo
+Smiles
+LATAM Pass
+TudoAzul
+
+Bancos
+
+Itaú
+Bradesco
+Santander
+C6
+Inter
+"""
 
     await update.message.reply_text(texto)
 
-# ------------------
+# -----------------------------
 
 async def passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    texto = (
-"✈️ Monitor de passagens ativo\n\n"
-"Detectando:\n"
-"Erro tarifário\n"
-"Promoções relâmpago\n"
-"Milheiro barato"
-)
+    texto = """
+✈️ Monitor de passagens ativo
+
+Detectando:
+
+Erro tarifário
+Promoções relâmpago
+Milheiro barato
+"""
 
     await update.message.reply_text(texto)
 
-# ------------------
+# -----------------------------
+# SISTEMA DE PONTUAÇÃO
+# -----------------------------
 
 def pontuar(texto):
 
@@ -164,9 +207,11 @@ def pontuar(texto):
 
     return score
 
-# ------------------
+# -----------------------------
+# MONITOR BLOGS
+# -----------------------------
 
-async def monitor(context: ContextTypes.DEFAULT_TYPE):
+async def monitor_blogs(context):
 
     global historico
 
@@ -194,10 +239,6 @@ async def monitor(context: ContextTypes.DEFAULT_TYPE):
 
                 mensagem = f"🔥 BÔNUS ALTO DETECTADO\n\n{titulo}\n{link}"
 
-            if any(banco in texto for banco in BANCOS):
-
-                mensagem = f"💳 Transferência detectada\n\n{titulo}\n{link}"
-
             if any(m in texto for m in MILHEIRO):
 
                 mensagem = f"💰 Milheiro barato\n\n{titulo}\n{link}"
@@ -214,13 +255,52 @@ async def monitor(context: ContextTypes.DEFAULT_TYPE):
                 )
 
                 historico.append(titulo)
+
                 salvar_historico(historico)
 
                 ranking[titulo] = pontuar(texto)
 
                 return
 
-# ------------------
+# -----------------------------
+# MONITOR PROGRAMAS OFICIAIS
+# -----------------------------
+
+async def monitor_programas(context):
+
+    for nome, url in PROGRAMAS_SITES.items():
+
+        try:
+
+            r = requests.get(url, timeout=10)
+
+            soup = BeautifulSoup(r.text, "html.parser")
+
+            texto = soup.get_text().lower()
+
+            if "100%" in texto or "90%" in texto or "bônus" in texto:
+
+                msg = f"""
+🚨 POSSÍVEL PROMOÇÃO DETECTADA
+
+Programa: {nome}
+
+Confira:
+{url}
+"""
+
+                await context.bot.send_message(
+                    chat_id=CHAT_ID,
+                    text=msg
+                )
+
+        except:
+
+            pass
+
+# -----------------------------
+# MAIN
+# -----------------------------
 
 def main():
 
@@ -237,9 +317,15 @@ def main():
     job = app.job_queue
 
     job.run_repeating(
-        monitor,
+        monitor_blogs,
         interval=600,
         first=20
+    )
+
+    job.run_repeating(
+        monitor_programas,
+        interval=900,
+        first=30
     )
 
     print("Radar PRO+++ iniciado")
