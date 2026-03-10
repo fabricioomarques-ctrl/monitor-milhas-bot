@@ -257,10 +257,6 @@ def tem_sinal_promocional(texto: str) -> bool:
     tem_geral = any(p in txt for p in PALAVRAS_PROMO_GERAIS)
     tem_transfer = any(p in txt for p in PALAVRAS_TRANSFERENCIA)
 
-    # Regras mais rígidas:
-    # 1) bônus + transferência
-    # 2) frase real de campanha
-    # 3) bônus + campanha/promoção
     if tem_bonus and tem_transfer:
         return True
 
@@ -454,6 +450,47 @@ def extrair_texto_link(tag) -> str:
     return limpar_espacos(" | ".join(partes))
 
 
+def resumo_promocoes():
+    sinais = estado.get("signals", {})
+    if not sinais:
+        return "Nenhum sinal de promoção detectado ainda."
+
+    linhas = []
+    for _, dados in list(sinais.items())[:10]:
+        payload = dados.get("payload", {})
+        programa = payload.get("programa", "Programa")
+        titulo = payload.get("titulo", "Promoção")
+        bonus = payload.get("bonus", "")
+        fontes = ", ".join(dados.get("sources", []))
+        linha = f"• {programa} — {titulo}"
+        if bonus:
+            linha += f" ({bonus})"
+        if fontes:
+            linha += f" | fontes: {fontes}"
+        linhas.append(linha[:220])
+
+    return "\n".join(linhas) if linhas else "Nenhum sinal de promoção detectado ainda."
+
+
+def resumo_transferencias():
+    sinais = estado.get("signals", {})
+    linhas = []
+
+    for _, dados in sinais.items():
+        payload = dados.get("payload", {})
+        titulo = normalizar(payload.get("titulo", ""))
+        bonus = payload.get("bonus", "")
+        programa = payload.get("programa", "Programa")
+
+        if any(p in titulo for p in PALAVRAS_TRANSFERENCIA) or bonus:
+            linha = f"• {programa} — {payload.get('titulo', 'Transferência')}"
+            if bonus:
+                linha += f" ({bonus})"
+            linhas.append(linha[:220])
+
+    return "\n".join(linhas[:10]) if linhas else "Nenhuma transferência promocional detectada ainda."
+
+
 # -----------------------------
 # COMANDOS
 # -----------------------------
@@ -463,6 +500,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ✈️ Radar de Milhas PRO+++ Ultra
 
 /menu
+/promocoes
+/transferencias
+/passagens
 /ranking
 /status
 """
@@ -473,6 +513,9 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = """
 📡 MENU
 
+/promocoes
+/transferencias
+/passagens
 /ranking
 /status
 """
@@ -515,6 +558,30 @@ async def ranking_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         texto += f"{pos}️⃣ {titulo}\n"
         pos += 1
 
+    await update.message.reply_text(texto)
+
+
+async def promocoes_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = "🔥 RESUMO DE PROMOÇÕES\n\n" + resumo_promocoes()
+    await update.message.reply_text(texto)
+
+
+async def transferencias_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = "🔁 RESUMO DE TRANSFERÊNCIAS\n\n" + resumo_transferencias()
+    await update.message.reply_text(texto)
+
+
+async def passagens_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = """
+✈️ MONITOR DE PASSAGENS ATIVO
+
+Detectando:
+• possível erro tarifário
+• promoções relâmpago
+• sinais de oportunidade por milhas
+
+Obs.: o filtro principal continua bloqueando páginas genéricas.
+"""
     await update.message.reply_text(texto)
 
 
@@ -697,8 +764,6 @@ async def radar_antecipado(context):
             texto_pagina = limpar_espacos(soup.get_text(" ", strip=True))
             texto_norm = normalizar(texto_pagina)
 
-            # Radar antecipado mais rígido:
-            # só considera se tiver bônus + transferência
             tem_bonus = extrair_bonus(texto_norm) != ""
             tem_transfer = any(p in texto_norm for p in PALAVRAS_TRANSFERENCIA)
             tem_frase_real = any(p in texto_norm for p in PALAVRAS_PROMO_REAL)
@@ -706,8 +771,6 @@ async def radar_antecipado(context):
             if not ((tem_bonus and tem_transfer) or tem_frase_real):
                 continue
 
-            # Bloqueia páginas genéricas de parceiros como alerta isolado
-            # Aqui ele apenas registra sinal, e só vira forte se bater com outra fonte.
             programa = nome
             bonus = extrair_bonus(texto_norm)
             chave_evento = montar_chave_blog(programa, f"{programa} {bonus} antecipado")
@@ -725,7 +788,7 @@ async def radar_antecipado(context):
 
             await enviar_confirmado_se_precisar(context, chave_evento)
 
-            # Não envia alerta isolado de /parceiros para evitar falso positivo
+            # Não envia alerta isolado de /parceiros
             ranking[f"{programa} antecipado"] = 4
 
         except Exception:
@@ -741,8 +804,11 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("menu", menu))
-    app.add_handler(CommandHandler("status", status))
+    app.add_handler(CommandHandler("promocoes", promocoes_cmd))
+    app.add_handler(CommandHandler("transferencias", transferencias_cmd))
+    app.add_handler(CommandHandler("passagens", passagens_cmd))
     app.add_handler(CommandHandler("ranking", ranking_cmd))
+    app.add_handler(CommandHandler("status", status))
 
     job = app.job_queue
     job.run_repeating(monitor_blogs, interval=600, first=20)
