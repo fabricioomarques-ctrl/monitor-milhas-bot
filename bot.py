@@ -13,7 +13,6 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-
 ARQUIVO = "promocoes_enviadas.json"
 
 HEADERS = {
@@ -23,10 +22,6 @@ HEADERS = {
         "Mobile/15E148 Safari/604.1"
     )
 }
-
-# -----------------------------
-# FONTES
-# -----------------------------
 
 RSS_FEEDS = [
     "https://www.melhoresdestinos.com.br/feed",
@@ -54,10 +49,6 @@ MILHEIRO_SITES = [
     "https://www.hotmilhas.com.br",
 ]
 
-# -----------------------------
-# REGRAS
-# -----------------------------
-
 BONUS_REGEX = r"\b(50|60|70|80|85|90|95|100)\s*%\b"
 
 PALAVRAS_PROMO_REAL = [
@@ -73,14 +64,6 @@ PALAVRAS_PROMO_REAL = [
     "promoção válida",
     "válido até",
     "valido ate",
-]
-
-PALAVRAS_PROMO_GERAIS = [
-    "bonus",
-    "bônus",
-    "campanha",
-    "promocao",
-    "promoção",
 ]
 
 PALAVRAS_TRANSFERENCIA = [
@@ -146,17 +129,11 @@ STOPWORDS = {
     "especial", "especiais", "valida", "válida", "ate", "até",
 }
 
-TTL_SINAL = 12 * 60 * 60  # 12 horas
+TTL_SINAL = 12 * 60 * 60
 
-# -----------------------------
-# ESTADO
-# -----------------------------
 
 def estado_padrao():
-    return {
-        "sent": [],
-        "signals": {}
-    }
+    return {"sent": [], "signals": {}}
 
 
 def carregar():
@@ -185,9 +162,6 @@ def salvar():
 estado = carregar()
 ranking = {}
 
-# -----------------------------
-# HELPERS
-# -----------------------------
 
 def normalizar(texto: str) -> str:
     if not texto:
@@ -251,19 +225,14 @@ def texto_ruim(texto: str) -> bool:
 
 def tem_sinal_promocional(texto: str) -> bool:
     txt = normalizar(texto)
-
     tem_bonus = extrair_bonus(txt) != ""
     tem_real = any(p in txt for p in PALAVRAS_PROMO_REAL)
-    tem_geral = any(p in txt for p in PALAVRAS_PROMO_GERAIS)
     tem_transfer = any(p in txt for p in PALAVRAS_TRANSFERENCIA)
 
     if tem_bonus and tem_transfer:
         return True
 
     if tem_real:
-        return True
-
-    if tem_bonus and tem_geral:
         return True
 
     return False
@@ -300,7 +269,6 @@ def montar_chave_blog(programa: str, texto: str) -> str:
 
 def programa_no_texto(texto: str) -> str:
     txt = normalizar(texto)
-
     if "livelo" in txt:
         return "Livelo"
     if "smiles" in txt:
@@ -309,13 +277,11 @@ def programa_no_texto(texto: str) -> str:
         return "LATAM"
     if "azul" in txt or "tudoazul" in txt:
         return "TudoAzul"
-
     return ""
 
 
 def programa_da_url(url: str) -> str:
     txt = normalizar(url)
-
     if "livelo" in txt:
         return "Livelo"
     if "smiles" in txt:
@@ -324,7 +290,6 @@ def programa_da_url(url: str) -> str:
         return "LATAM"
     if "tudoazul" in txt or "voeazul" in txt or "azul" in txt:
         return "TudoAzul"
-
     return ""
 
 
@@ -492,12 +457,10 @@ def resumo_transferencias():
     return "\n".join(linhas[:10]) if linhas else "Nenhuma transferência promocional detectada ainda."
 
 
-# -----------------------------
-# COMANDOS
-# -----------------------------
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = """
+✅ VERSAO MENU FINAL 1256
+
 ✈️ Radar de Milhas PRO+++ Ultra
 
 /menu
@@ -512,6 +475,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = """
+✅ VERSAO MENU FINAL 1256
+
 📡 MENU
 
 /promocoes
@@ -554,6 +519,8 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             confirmados += 1
 
     texto = f"""
+✅ VERSAO MENU FINAL 1256
+
 🟢 RADAR ONLINE
 
 Promoções detectadas hoje: {len(ranking)}
@@ -585,10 +552,6 @@ async def ranking_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(texto)
 
-
-# -----------------------------
-# RADAR BLOGS
-# -----------------------------
 
 async def monitor_blogs(context):
     limpar_sinais_antigos()
@@ -643,10 +606,6 @@ async def monitor_blogs(context):
         except Exception:
             pass
 
-
-# -----------------------------
-# RADAR PROGRAMAS
-# -----------------------------
 
 async def monitor_programas(context):
     limpar_sinais_antigos()
@@ -719,10 +678,6 @@ async def monitor_programas(context):
             pass
 
 
-# -----------------------------
-# RADAR MILHEIRO
-# -----------------------------
-
 async def monitor_milheiro(context):
     for site in MILHEIRO_SITES:
         try:
@@ -753,10 +708,6 @@ async def monitor_milheiro(context):
         except Exception:
             pass
 
-
-# -----------------------------
-# RADAR ANTECIPADO
-# -----------------------------
 
 async def radar_antecipado(context):
     limpar_sinais_antigos()
@@ -793,16 +744,11 @@ async def radar_antecipado(context):
 
             await enviar_confirmado_se_precisar(context, chave_evento)
 
-            # Não envia alerta isolado de /parceiros
             ranking[f"{programa} antecipado"] = 4
 
         except Exception:
             pass
 
-
-# -----------------------------
-# MAIN
-# -----------------------------
 
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
@@ -821,6 +767,7 @@ def main():
     job.run_repeating(monitor_milheiro, interval=1200, first=60)
     job.run_repeating(radar_antecipado, interval=1500, first=80)
 
+    print("✅ VERSAO MENU FINAL 1256")
     print("Radar PRO+++ Ultra iniciado")
     app.run_polling()
 
