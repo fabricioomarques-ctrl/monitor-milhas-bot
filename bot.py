@@ -18,6 +18,7 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
+# BLOGS
 RSS_FEEDS = [
     "https://www.melhoresdestinos.com.br/feed",
     "https://passageirodeprimeira.com/feed",
@@ -25,6 +26,7 @@ RSS_FEEDS = [
     "https://estevaopelomundo.com.br/feed"
 ]
 
+# PROGRAMAS
 PROGRAMAS = {
     "Livelo": "https://www.livelo.com.br/promocoes",
     "Smiles": "https://www.smiles.com.br/promocoes",
@@ -32,36 +34,45 @@ PROGRAMAS = {
     "TudoAzul": "https://tudoazul.voeazul.com.br/web/azul/promocoes"
 }
 
+# MILHEIRO
 MILHEIRO = [
     "https://www.maxmilhas.com.br",
     "https://www.hotmilhas.com.br"
 ]
 
-BONUS_REGEX = r"(50|60|70|80|90|100)\s?%"
+# X/TWITTER (scraping simples de página pública)
+SOCIAL = [
+    "https://nitter.net/livelo",
+    "https://nitter.net/smilesoficial",
+    "https://nitter.net/latampass",
+    "https://nitter.net/voeazul"
+]
 
 PALAVRAS_VALIDAS = [
     "milha",
     "milhas",
     "pontos",
     "transfer",
-    "bônus",
     "bonus",
+    "bônus",
     "fidelidade",
-    "latam pass",
-    "smiles",
     "livelo",
+    "smiles",
+    "latam",
     "tudoazul"
 ]
 
 PALAVRAS_BLOQUEADAS = [
     "hotel",
-    "seguro",
-    "ingresso",
-    "cruzeiro",
-    "cvc",
     "pacote",
-    "resort"
+    "resort",
+    "seguro",
+    "cruzeiro",
+    "ingresso",
+    "cvc"
 ]
+
+BONUS_REGEX = r"(50|60|70|80|90|100)\s?%"
 
 ranking = {}
 historico = {}
@@ -79,16 +90,16 @@ def salvar():
 
 historico = carregar()
 
-async def enviar(context, texto):
+async def enviar(context, msg):
 
-    await context.bot.send_message(chat_id=CHAT_ID, text=texto)
+    await context.bot.send_message(chat_id=CHAT_ID, text=msg)
 
     if CANAL_ID:
-        await context.bot.send_message(chat_id=CANAL_ID, text=texto)
+        await context.bot.send_message(chat_id=CANAL_ID, text=msg)
 
-def filtro_valido(texto):
+def filtro(txt):
 
-    t = texto.lower()
+    t = txt.lower()
 
     if any(b in t for b in PALAVRAS_BLOQUEADAS):
         return False
@@ -98,9 +109,9 @@ def filtro_valido(texto):
 
     return False
 
-def detectar_bonus(texto):
+def detectar_bonus(txt):
 
-    m = re.search(BONUS_REGEX, texto)
+    m = re.search(BONUS_REGEX, txt)
 
     if m:
         return m.group()
@@ -142,7 +153,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🟢 Radar online
 
 Promoções detectadas: {len(ranking)}
-Fontes monitoradas: {len(RSS_FEEDS) + len(PROGRAMAS)}
+Fontes monitoradas: {len(RSS_FEEDS) + len(PROGRAMAS) + len(SOCIAL)}
 """
 
     await update.message.reply_text(texto)
@@ -162,19 +173,19 @@ async def ranking_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(texto)
 
-async def promocoes_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("🔥 Radar monitorando promoções.")
 
-async def transferencias_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("🔁 Monitorando transferências bonificadas.")
 
-async def passagens_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("✈️ Monitorando passagens com milhas.")
 
-async def monitor_blogs(context):
+async def blogs(context):
 
     for feed in RSS_FEEDS:
 
@@ -187,7 +198,7 @@ async def monitor_blogs(context):
                 titulo = post.title
                 link = post.link
 
-                if not filtro_valido(titulo):
+                if not filtro(titulo):
                     continue
 
                 if link in historico:
@@ -202,7 +213,7 @@ async def monitor_blogs(context):
 
                 msg += f"\n{link}"
 
-                await enviar(context,msg)
+                await enviar(context, msg)
 
                 historico[link] = True
                 salvar()
@@ -214,7 +225,7 @@ async def monitor_blogs(context):
         except:
             pass
 
-async def monitor_programas(context):
+async def programas(context):
 
     for nome,url in PROGRAMAS.items():
 
@@ -229,17 +240,17 @@ async def monitor_programas(context):
             for a in links:
 
                 link = urljoin(url,a["href"])
-                texto = a.text.strip()
+                txt = a.text.strip()
 
-                if not filtro_valido(texto):
+                if not filtro(txt):
                     continue
 
                 if link in historico:
                     continue
 
-                bonus = detectar_bonus(texto)
+                bonus = detectar_bonus(txt)
 
-                msg = f"⚡ Promoção detectada\n\nPrograma: {nome}\n{texto}"
+                msg = f"⚡ Promoção detectada\n\nPrograma: {nome}\n{txt}"
 
                 if bonus:
                     msg += f"\nBônus: {bonus}"
@@ -248,64 +259,101 @@ async def monitor_programas(context):
 
                 await enviar(context,msg)
 
-                historico[link]=True
+                historico[link] = True
                 salvar()
 
-                ranking[nome]=ranking.get(nome,0)+5
+                ranking[nome] = ranking.get(nome,0)+5
 
                 return
 
         except:
             pass
 
-async def monitor_milheiro(context):
+async def milheiro(context):
 
     for site in MILHEIRO:
 
         try:
 
-            r=requests.get(site,headers=HEADERS,timeout=15)
+            r = requests.get(site,headers=HEADERS,timeout=15)
 
-            txt=r.text.lower()
+            txt = r.text.lower()
 
             if "r$ 15" in txt or "r$15" in txt:
 
                 if site in historico:
                     continue
 
-                msg=f"💰 Milheiro barato detectado\n\n{site}"
+                msg = f"💰 Milheiro barato detectado\n\n{site}"
 
                 await enviar(context,msg)
 
-                historico[site]=True
+                historico[site] = True
                 salvar()
 
-                ranking["milheiro barato"]=ranking.get("milheiro barato",0)+7
+                ranking["milheiro barato"] = ranking.get("milheiro barato",0)+7
+
+        except:
+            pass
+
+async def social(context):
+
+    for url in SOCIAL:
+
+        try:
+
+            r = requests.get(url,headers=HEADERS,timeout=15)
+
+            soup = BeautifulSoup(r.text,"html.parser")
+
+            posts = soup.find_all("div",class_="timeline-item")[:3]
+
+            for p in posts:
+
+                txt = p.get_text()
+
+                if not filtro(txt):
+                    continue
+
+                if txt in historico:
+                    continue
+
+                msg = f"📢 Promoção detectada em rede social\n\n{txt[:200]}"
+
+                await enviar(context,msg)
+
+                historico[txt] = True
+                salvar()
+
+                ranking["social"] = ranking.get("social",0)+4
+
+                return
 
         except:
             pass
 
 def main():
 
-    app=ApplicationBuilder().token(TOKEN).build()
+    app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start",start))
     app.add_handler(CommandHandler("menu",menu))
     app.add_handler(CommandHandler("status",status))
     app.add_handler(CommandHandler("ranking",ranking_cmd))
-    app.add_handler(CommandHandler("promocoes",promocoes_cmd))
-    app.add_handler(CommandHandler("transferencias",transferencias_cmd))
-    app.add_handler(CommandHandler("passagens",passagens_cmd))
+    app.add_handler(CommandHandler("promocoes",promocoes))
+    app.add_handler(CommandHandler("transferencias",transferencias))
+    app.add_handler(CommandHandler("passagens",passagens))
 
-    job=app.job_queue
+    job = app.job_queue
 
-    job.run_repeating(monitor_blogs,interval=600,first=20)
-    job.run_repeating(monitor_programas,interval=900,first=40)
-    job.run_repeating(monitor_milheiro,interval=1200,first=60)
+    job.run_repeating(blogs, interval=600, first=20)
+    job.run_repeating(programas, interval=900, first=40)
+    job.run_repeating(milheiro, interval=1200, first=60)
+    job.run_repeating(social, interval=1500, first=80)
 
-    print("Radar de Milhas PRO iniciado")
+    print("Radar PRO iniciado")
 
     app.run_polling()
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
