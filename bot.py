@@ -478,12 +478,13 @@ def resumo_transferencias():
 
     for _, dados in sinais.items():
         payload = dados.get("payload", {})
-        titulo = normalizar(payload.get("titulo", ""))
+        titulo_original = payload.get("titulo", "")
+        titulo = normalizar(titulo_original)
         bonus = payload.get("bonus", "")
         programa = payload.get("programa", "Programa")
 
         if any(p in titulo for p in PALAVRAS_TRANSFERENCIA) or bonus:
-            linha = f"• {programa} — {payload.get('titulo', 'Transferência')}"
+            linha = f"• {programa} — {titulo_original}"
             if bonus:
                 linha += f" ({bonus})"
             linhas.append(linha[:220])
@@ -518,6 +519,30 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /passagens
 /ranking
 /status
+"""
+    await update.message.reply_text(texto)
+
+
+async def promocoes_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = "🔥 RESUMO DE PROMOÇÕES\n\n" + resumo_promocoes()
+    await update.message.reply_text(texto)
+
+
+async def transferencias_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = "🔁 RESUMO DE TRANSFERÊNCIAS\n\n" + resumo_transferencias()
+    await update.message.reply_text(texto)
+
+
+async def passagens_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = """
+✈️ MONITOR DE PASSAGENS ATIVO
+
+Detectando:
+• possível erro tarifário
+• promoções relâmpago
+• oportunidades por milhas
+
+Obs.: o filtro continua bloqueando páginas genéricas.
 """
     await update.message.reply_text(texto)
 
@@ -558,30 +583,6 @@ async def ranking_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         texto += f"{pos}️⃣ {titulo}\n"
         pos += 1
 
-    await update.message.reply_text(texto)
-
-
-async def promocoes_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    texto = "🔥 RESUMO DE PROMOÇÕES\n\n" + resumo_promocoes()
-    await update.message.reply_text(texto)
-
-
-async def transferencias_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    texto = "🔁 RESUMO DE TRANSFERÊNCIAS\n\n" + resumo_transferencias()
-    await update.message.reply_text(texto)
-
-
-async def passagens_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    texto = """
-✈️ MONITOR DE PASSAGENS ATIVO
-
-Detectando:
-• possível erro tarifário
-• promoções relâmpago
-• sinais de oportunidade por milhas
-
-Obs.: o filtro principal continua bloqueando páginas genéricas.
-"""
     await update.message.reply_text(texto)
 
 
@@ -728,7 +729,11 @@ async def monitor_milheiro(context):
             r = requests.get(site, headers=HEADERS, timeout=15)
             texto = normalizar(r.text)
 
-            if "r$ 15" in texto or "r$15" in texto or "r$ 16" in texto or "r$16" in texto or "r$ 17" in texto or "r$17" in texto:
+            if (
+                "r$ 15" in texto or "r$15" in texto or
+                "r$ 16" in texto or "r$16" in texto or
+                "r$ 17" in texto or "r$17" in texto
+            ):
                 chave = f"milheiro|{site}"
 
                 if ja_enviado(chave):
