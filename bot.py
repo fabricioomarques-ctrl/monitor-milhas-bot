@@ -6,12 +6,17 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 TOKEN = os.environ["TELEGRAM_TOKEN"]
 
+ULTIMA_PROMO = ""
+CHAT_ID = 5006505664
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "✈️ Monitor de Milhas Ativo!\n\n"
         "Comandos:\n"
         "/promocoes - Buscar promoções de milhas"
     )
+
 
 async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -34,6 +39,9 @@ async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
         titulo = post.text.strip()
         link = post.get("href")
 
+        if not link:
+            continue
+
         if "milhas" in titulo.lower() or "passagem" in titulo.lower():
 
             if link.startswith("http"):
@@ -48,13 +56,6 @@ async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(resposta)
 
-app = ApplicationBuilder().token(TOKEN).build()
-
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("promocoes", promocoes))
-from telegram.ext import JobQueue
-
-ULTIMA_PROMO = ""
 
 async def monitorar_promocoes(context: ContextTypes.DEFAULT_TYPE):
 
@@ -86,19 +87,27 @@ async def monitorar_promocoes(context: ContextTypes.DEFAULT_TYPE):
                     mensagem = f"🚨 Nova promoção detectada!\n\n{titulo}\n{link}"
 
                     await context.bot.send_message(
-                        chat_id=context.job.chat_id,
+                        chat_id=CHAT_ID,
                         text=mensagem
                     )
 
                 break
-                chat_id = 5006505664
+
+
+app = ApplicationBuilder().token(TOKEN).build()
+
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("promocoes", promocoes))
+
 
 job_queue = app.job_queue
 
 job_queue.run_repeating(
     monitorar_promocoes,
     interval=1800,
-    first=10,
-    chat_id=chat_id
+    first=10
 )
+
+print("Bot rodando...")
+
 app.run_polling()
