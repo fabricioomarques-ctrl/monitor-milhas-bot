@@ -61,7 +61,11 @@ MILHEIRO_SITES = [
 
 ]
 
-BONUS = ["100%","90%","85%","80%"]
+BONUS = ["100%","95%","90%","85%","80%"]
+
+PALAVRAS_PROMO = ["bonus","bônus","promo","promoção","transfer"]
+
+IGNORAR = ["shopping","produto","loja"]
 
 # -----------------------------
 # HISTÓRICO
@@ -85,6 +89,16 @@ historico = carregar()
 
 ranking = {}
 
+def ja_enviado(item):
+
+    return item in historico
+
+def registrar(item):
+
+    historico.append(item)
+
+    salvar(historico)
+
 # -----------------------------
 # COMANDOS
 # -----------------------------
@@ -92,12 +106,9 @@ ranking = {}
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     texto = """
-✈️ Radar de Milhas PRO MAX
+✈️ Radar de Milhas PRO+++ Ultra
 
 /menu
-/promocoes
-/transferencias
-/passagens
 /ranking
 /status
 """
@@ -109,9 +120,6 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = """
 📡 MENU
 
-/promocoes
-/transferencias
-/passagens
 /ranking
 /status
 """
@@ -123,9 +131,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = f"""
 🟢 RADAR ONLINE
 
-Fontes monitoradas: 12+
-
-Promoções hoje: {len(ranking)}
+Promoções detectadas hoje: {len(ranking)}
 
 Detectores ativos:
 
@@ -141,7 +147,7 @@ async def ranking_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not ranking:
 
-        await update.message.reply_text("Nenhuma promoção detectada hoje.")
+        await update.message.reply_text("Nenhuma promoção detectada ainda.")
         return
 
     texto = "🏆 Ranking promoções\n\n"
@@ -164,8 +170,6 @@ async def ranking_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def monitor_blogs(context):
 
-    global historico
-
     for feed in RSS_FEEDS:
 
         noticias = feedparser.parse(feed)
@@ -175,7 +179,9 @@ async def monitor_blogs(context):
             titulo = post.title
             link = post.link
 
-            if titulo in historico:
+            chave = titulo + link
+
+            if ja_enviado(chave):
                 continue
 
             texto = titulo.lower()
@@ -186,11 +192,9 @@ async def monitor_blogs(context):
 
                 await context.bot.send_message(chat_id=CHAT_ID,text=msg)
 
-                historico.append(titulo)
+                registrar(chave)
 
-                salvar(historico)
-
-                ranking[titulo] = 5
+                ranking[titulo] = 10
 
                 return
 
@@ -208,20 +212,40 @@ async def monitor_programas(context):
 
             soup = BeautifulSoup(r.text,"html.parser")
 
-            texto = soup.get_text().lower()
+            links = soup.find_all("a",href=True)
 
-            if "100%" in texto or "90%" in texto:
+            for l in links:
 
-                msg = f"""
+                href = l["href"]
+
+                texto = href.lower()
+
+                if any(p in texto for p in PALAVRAS_PROMO):
+
+                    if any(i in texto for i in IGNORAR):
+                        continue
+
+                    chave = nome + href
+
+                    if ja_enviado(chave):
+                        continue
+
+                    msg = f"""
 🚨 POSSÍVEL PROMOÇÃO
 
 Programa: {nome}
 
-Verifique:
-{url}
+Link detectado:
+{href}
 """
 
-                await context.bot.send_message(chat_id=CHAT_ID,text=msg)
+                    await context.bot.send_message(chat_id=CHAT_ID,text=msg)
+
+                    registrar(chave)
+
+                    ranking[nome] = 7
+
+                    return
 
         except:
 
@@ -241,17 +265,26 @@ async def monitor_milheiro(context):
 
             texto = r.text.lower()
 
-            if "r$17" in texto or "r$16" in texto or "r$15" in texto:
+            if "r$ 15" in texto or "r$ 16" in texto or "r$ 17" in texto:
+
+                chave = site + "milheiro"
+
+                if ja_enviado(chave):
+                    continue
 
                 msg = f"""
 💰 MILHEIRO BARATO
 
-Possível oportunidade
+Possível oportunidade detectada
 
 {site}
 """
 
                 await context.bot.send_message(chat_id=CHAT_ID,text=msg)
+
+                registrar(chave)
+
+                ranking["milheiro barato"] = 6
 
         except:
 
@@ -271,16 +304,25 @@ async def radar_antecipado(context):
 
             texto = r.text.lower()
 
-            if "promo" in texto or "bonus" in texto:
+            if any(p in texto for p in PALAVRAS_PROMO):
+
+                chave = url + "antecipado"
+
+                if ja_enviado(chave):
+                    continue
 
                 msg = f"""
-📡 POSSÍVEL PROMOÇÃO ANTES DOS BLOGS
+📡 POSSÍVEL PROMOÇÃO ANTECIPADA
 
 Fonte detectada:
 {url}
 """
 
                 await context.bot.send_message(chat_id=CHAT_ID,text=msg)
+
+                registrar(chave)
+
+                ranking["promo antecipada"] = 8
 
         except:
 
@@ -309,7 +351,7 @@ def main():
 
     job.run_repeating(radar_antecipado,interval=1500,first=80)
 
-    print("Radar PRO MAX iniciado")
+    print("Radar PRO+++ Ultra iniciado")
 
     app.run_polling()
 
