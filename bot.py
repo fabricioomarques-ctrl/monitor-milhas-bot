@@ -2,7 +2,6 @@ import os
 import re
 import json
 import time
-import math
 import unicodedata
 from urllib.parse import urljoin, urlparse
 
@@ -49,7 +48,6 @@ MILHEIRO = [
     "https://www.hotmilhas.com.br",
 ]
 
-# Opcional e estável o bastante usando nitter.
 SOCIAL = {
     "Livelo": "https://nitter.net/livelo",
     "Smiles": "https://nitter.net/smilesoficial",
@@ -58,7 +56,7 @@ SOCIAL = {
 }
 
 # ==========================================
-# REGRAS DE FILTRO
+# REGRAS
 # ==========================================
 
 BONUS_REGEX = r"\b(30|40|50|60|70|80|85|90|95|100)\s*%\b"
@@ -77,11 +75,11 @@ PROGRAMAS_MARCAS = [
 TERMOS_TRANSFERENCIA = [
     "transferência bonificada",
     "transferencia bonificada",
+    "bônus de transferência",
+    "bonus de transferencia",
     "transferência",
     "transferencia",
     "transferir pontos",
-    "bônus de transferência",
-    "bonus de transferencia",
 ]
 
 TERMOS_RESGATE = [
@@ -103,7 +101,6 @@ TERMOS_CLUBE = [
     "clube tudoazul",
 ]
 
-# Termos de promoções irrelevantes para o seu objetivo
 TERMOS_BLOQUEADOS = [
     "hotel",
     "hotéis",
@@ -135,6 +132,11 @@ TERMOS_BLOQUEADOS = [
     "casa",
     "varejo",
     "parceiros do shopping",
+    "mês do consumidor",
+    "mes do consumidor",
+    "ofertas em eletrônicos",
+    "ofertas em eletronicos",
+    "grandes marcas",
 ]
 
 ROTAS_GENERICAS = {
@@ -170,6 +172,7 @@ def carregar_estado():
     try:
         with open(ARQUIVO_ESTADO, "r", encoding="utf-8") as f:
             data = json.load(f)
+
         if not isinstance(data, dict):
             return estado_padrao()
 
@@ -219,7 +222,7 @@ def extrair_valor_milheiro(texto: str) -> float:
     if not m:
         return 0.0
     try:
-        return float(m.group(1).replace(",", "."))
+        return float(m.group(1))
     except Exception:
         return 0.0
 
@@ -232,8 +235,7 @@ def url_absoluta(base: str, href: str) -> str:
 
 def caminho_url(url: str) -> str:
     try:
-        path = urlparse(url).path or "/"
-        return path.strip().lower() or "/"
+        return (urlparse(url).path or "/").strip().lower() or "/"
     except Exception:
         return "/"
 
@@ -270,28 +272,6 @@ def limpar_sinais_antigos():
         salvar_estado()
 
 
-def marcar_ranking(nome: str, score: float):
-    atual = estado["ranking"].get(nome, 0)
-    if score > atual:
-        estado["ranking"][nome] = score
-        salvar_estado()
-
-
-def nome_programa_no_texto(texto: str) -> str:
-    txt = normalizar(texto)
-    if "livelo" in txt:
-        return "Livelo"
-    if "smiles" in txt:
-        return "Smiles"
-    if "latam" in txt:
-        return "LATAM Pass"
-    if "azul" in txt or "tudoazul" in txt:
-        return "TudoAzul"
-    if "esfera" in txt:
-        return "Esfera"
-    return ""
-
-
 def texto_bloqueado(texto: str) -> bool:
     txt = normalizar(texto)
     return any(t in txt for t in TERMOS_BLOQUEADOS)
@@ -312,14 +292,22 @@ def eh_clube(texto: str) -> bool:
     return any(t in txt for t in TERMOS_CLUBE)
 
 
+def nome_programa_no_texto(texto: str) -> str:
+    txt = normalizar(texto)
+    if "livelo" in txt:
+        return "Livelo"
+    if "smiles" in txt:
+        return "Smiles"
+    if "latam" in txt:
+        return "LATAM Pass"
+    if "azul" in txt or "tudoazul" in txt:
+        return "TudoAzul"
+    if "esfera" in txt:
+        return "Esfera"
+    return ""
+
+
 def filtro_ultra(texto: str) -> bool:
-    """
-    Só aceita:
-    - transferência bonificada
-    - promoções claras de milhas/resgate
-    - clubes de milhas
-    - textos com bônus + programa reconhecido
-    """
     txt = normalizar(texto)
 
     if not txt:
@@ -329,7 +317,7 @@ def filtro_ultra(texto: str) -> bool:
         return False
 
     tem_bonus = extrair_bonus(txt) > 0
-    tem_programa = any(marca in txt for marca in PROGRAMAS_MARCAS)
+    tem_programa = any(p in txt for p in PROGRAMAS_MARCAS)
 
     if eh_transferencia(txt):
         return True
@@ -364,13 +352,12 @@ def score_promocao(texto: str, valor_milheiro: float = 0.0, fontes: int = 1) -> 
     bonus = extrair_bonus(txt)
 
     if valor_milheiro > 0:
-        # Quanto menor, melhor.
         if valor_milheiro <= 15.0:
             base = 9.8
         elif valor_milheiro <= 16.0:
             base = 9.2
         elif valor_milheiro <= 17.0:
-            base = 8.5
+            base = 8.4
         elif valor_milheiro <= 18.0:
             base = 7.5
         else:
@@ -387,22 +374,25 @@ def score_promocao(texto: str, valor_milheiro: float = 0.0, fontes: int = 1) -> 
         elif bonus >= 80:
             base = 8.2
         elif bonus >= 70:
-            base = 7.5
+            base = 7.4
         elif bonus >= 60:
             base = 6.8
         elif bonus >= 50:
-            base = 6.0
+            base = 6.2
         elif eh_transferencia(txt):
-            base = 6.3
+            base = 6.4
         elif eh_resgate(txt):
-            base = 6.0
+            base = 6.1
+        elif eh_clube(txt):
+            base = 5.8
         else:
-            base = 5.5
+            base = 5.0
 
     if fontes >= 2:
         base += 0.4
+
     if eh_clube(txt):
-        base -= 0.3
+        base -= 0.2
 
     return round(min(base, 10.0), 1)
 
@@ -440,19 +430,7 @@ def registrar_sinal(chave: str, fonte: str, payload: dict):
 
 
 def total_fontes(chave: str) -> int:
-    sinal = estado["sinais"].get(chave, {})
-    return len(sinal.get("fontes", []))
-
-
-async def enviar_telegram(context, texto: str):
-    await context.bot.send_message(chat_id=CHAT_ID, text=texto)
-
-    if CANAL_ID:
-        try:
-            await context.bot.send_message(chat_id=CANAL_ID, text=texto)
-        except Exception:
-            # Mantém o bot funcionando mesmo se o canal falhar
-            pass
+    return len(estado["sinais"].get(chave, {}).get("fontes", []))
 
 
 def registrar_alerta_resumido(item: dict):
@@ -496,6 +474,16 @@ def extrair_texto_link(tag) -> str:
     return limpar_espacos(" | ".join(partes))
 
 
+async def enviar_telegram(context, texto: str):
+    await context.bot.send_message(chat_id=CHAT_ID, text=texto)
+
+    if CANAL_ID:
+        try:
+            await context.bot.send_message(chat_id=CANAL_ID, text=texto)
+        except Exception:
+            pass
+
+
 async def processar_evento(context, fonte: str, programa: str, titulo: str, link: str = "", valor_milheiro: float = 0.0):
     limpar_sinais_antigos()
 
@@ -516,7 +504,6 @@ async def processar_evento(context, fonte: str, programa: str, titulo: str, link
         },
     )
 
-    # Milheiro barato pode disparar com 1 fonte
     min_fontes = 1 if tipo == "milheiro" else 2
 
     if total_fontes(chave) < min_fontes:
@@ -536,6 +523,8 @@ async def processar_evento(context, fonte: str, programa: str, titulo: str, link
         emoji = "✈️"
     elif tipo == "milheiro":
         emoji = "💰"
+    elif tipo == "clube":
+        emoji = "⭐"
     else:
         emoji = "⚡"
 
@@ -561,14 +550,18 @@ async def processar_evento(context, fonte: str, programa: str, titulo: str, link
 
     await enviar_telegram(context, texto)
     registrar_envio(envio_key)
+
     registrar_alerta_resumido({
         "titulo": titulo,
         "tipo": tipo,
         "score": score,
     })
 
-    nome_ranking = titulo if tipo != "milheiro" else "Milheiro barato"
-    marcar_ranking(nome_ranking, score)
+    nome_rank = titulo if tipo != "milheiro" else "Milheiro barato"
+    atual = estado["ranking"].get(nome_rank, 0)
+    if score > atual:
+        estado["ranking"][nome_rank] = score
+        salvar_estado()
 
 # ==========================================
 # COMANDOS
@@ -615,6 +608,7 @@ Detectores ativos:
 ✔ redes sociais
 ✔ confirmação múltipla
 ✔ score automático
+✔ envio no canal
 """
     await update.message.reply_text(texto)
 
@@ -645,7 +639,7 @@ async def transferencias_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def passagens_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    texto = "✈️ Últimos alertas de passagens/milhas\n\n" + resumo_alertas("passagem")
+    texto = "✈️ Últimos alertas de passagens\n\n" + resumo_alertas("passagem")
     await update.message.reply_text(texto)
 
 # ==========================================
@@ -784,7 +778,7 @@ def main():
 
     job = app.job_queue
 
-    # Modo estável: 10 minutos
+    # modo estável: 10 minutos
     job.run_repeating(monitor_blogs, interval=600, first=20)
     job.run_repeating(monitor_programas, interval=600, first=40)
     job.run_repeating(monitor_milheiro, interval=600, first=60)
