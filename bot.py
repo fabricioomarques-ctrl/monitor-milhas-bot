@@ -6,92 +6,142 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 TOKEN = os.environ["TELEGRAM_TOKEN"]
 
-ULTIMA_PROMO = ""
-CHAT_ID = 5006505664
+chat_id = 5006505664
+
+ULTIMO_ALERTA = ""
+
+sites = [
+    "https://www.melhoresdestinos.com.br/",
+    "https://passageirodeprimeira.com/",
+    "https://www.melhorescartoes.com.br/"
+]
+
+palavras_chave = [
+
+    "livelo",
+    "transfer",
+    "transferência",
+    "bônus",
+
+    "latam pass",
+    "tudoazul",
+    "smiles",
+
+    "latam",
+    "azul",
+    "gol",
+
+    "bradesco",
+    "itau",
+    "c6",
+    "nubank",
+
+    "passagem",
+    "milhas",
+    "promoção",
+    "resgate",
+    "feirão",
+]
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "✈️ Monitor de Milhas Ativo!\n\n"
+
+    mensagem = (
+        "✈️ Radar de Milhas Ativo!\n\n"
         "Comandos:\n"
-        "/promocoes - Buscar promoções de milhas"
+        "/promocoes - Buscar promoções agora\n"
+        "/transferencias - Promoções de transferência\n"
+        "/passagens - Promoções de passagens"
     )
+
+    await update.message.reply_text(mensagem)
 
 
 async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    url = "https://www.melhoresdestinos.com.br/"
-
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
-
-    posts = soup.find_all("a")
-
     resposta = "🔥 Promoções encontradas:\n\n"
 
-    count = 0
+    for site in sites:
 
-    for post in posts:
-        titulo = post.text.strip()
-        link = post.get("href")
+        headers = {"User-Agent": "Mozilla/5.0"}
 
-        if not link:
-            continue
+        response = requests.get(site, headers=headers)
 
-        if "milhas" in titulo.lower() or "passagem" in titulo.lower():
+        soup = BeautifulSoup(response.text, "html.parser")
 
-            if link.startswith("http"):
-                resposta += f"{titulo}\n{link}\n\n"
-                count += 1
+        links = soup.find_all("a")
 
-        if count == 5:
-            break
+        count = 0
 
-    if count == 0:
-        resposta += "Nenhuma promoção encontrada agora."
+        for link in links:
+
+            titulo = link.text.strip()
+            url = link.get("href")
+
+            if not url:
+                continue
+
+            titulo_lower = titulo.lower()
+
+            for palavra in palavras_chave:
+
+                if palavra in titulo_lower:
+
+                    if url.startswith("http"):
+
+                        resposta += f"{titulo}\n{url}\n\n"
+
+                        count += 1
+                        break
+
+            if count == 5:
+                break
 
     await update.message.reply_text(resposta)
 
 
-async def monitorar_promocoes(context: ContextTypes.DEFAULT_TYPE):
+async def monitorar(context: ContextTypes.DEFAULT_TYPE):
 
-    global ULTIMA_PROMO
+    global ULTIMO_ALERTA
 
-    url = "https://www.melhoresdestinos.com.br/"
-    headers = {"User-Agent": "Mozilla/5.0"}
+    for site in sites:
 
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
+        headers = {"User-Agent": "Mozilla/5.0"}
 
-    posts = soup.find_all("a")
+        response = requests.get(site, headers=headers)
 
-    for post in posts:
-        titulo = post.text.strip()
-        link = post.get("href")
+        soup = BeautifulSoup(response.text, "html.parser")
 
-        if not link:
-            continue
+        links = soup.find_all("a")
 
-        if "milhas" in titulo.lower() or "livelo" in titulo.lower():
+        for link in links:
 
-            if link.startswith("http"):
+            titulo = link.text.strip()
+            url = link.get("href")
 
-                if titulo != ULTIMA_PROMO:
+            if not url:
+                continue
 
-                    ULTIMA_PROMO = titulo
+            titulo_lower = titulo.lower()
 
-                    mensagem = f"🚨 Nova promoção detectada!\n\n{titulo}\n{link}"
+            for palavra in palavras_chave:
 
-                    await context.bot.send_message(
-                        chat_id=CHAT_ID,
-                        text=mensagem
-                    )
+                if palavra in titulo_lower:
 
-                break
+                    if url.startswith("http"):
+
+                        if titulo != ULTIMO_ALERTA:
+
+                            ULTIMO_ALERTA = titulo
+
+                            mensagem = f"🚨 Nova promoção detectada!\n\n{titulo}\n{url}"
+
+                            await context.bot.send_message(
+                                chat_id=context.job.chat_id,
+                                text=mensagem
+                            )
+
+                            return
 
 
 app = ApplicationBuilder().token(TOKEN).build()
@@ -99,15 +149,13 @@ app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("promocoes", promocoes))
 
-
 job_queue = app.job_queue
 
 job_queue.run_repeating(
-    monitorar_promocoes,
-    interval=1800,
-    first=10
+    monitorar,
+    interval=600,
+    first=10,
+    chat_id=chat_id
 )
-
-print("Bot rodando...")
 
 app.run_polling()
