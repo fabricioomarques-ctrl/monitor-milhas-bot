@@ -7,8 +7,8 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Olá! 👋\n"
-        "Sou seu monitor inteligente de milhas ✈️\n\n"
+        "✈️ Monitor de Milhas Ativo!\n"
+"Estou verificando promoções para você.\n\n"
         "Comandos disponíveis:\n"
         "/promocoes - Ver promoções atuais\n"
         "/sites - Sites monitorados\n"
