@@ -1,156 +1,119 @@
 import os
-import requests
 import feedparser
-from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-TOKEN = os.environ["TELEGRAM_TOKEN"]
-chat_id = 5006505664
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
-ULTIMO_ALERTA = ""
-
-sites = [
-    "https://www.melhoresdestinos.com.br/",
-    "https://passageirodeprimeira.com/",
-    "https://www.melhorescartoes.com.br/"
-]
-
-rss_feeds = [
+# RSS de sites de milhas
+RSS_FEEDS = [
     "https://www.melhoresdestinos.com.br/feed",
     "https://passageirodeprimeira.com/feed",
     "https://www.melhorescartoes.com.br/feed"
 ]
 
-palavras_chave = [
-    "livelo",
-    "transfer",
-    "transferência",
-    "bônus",
-    "latam pass",
-    "tudoazul",
-    "smiles",
-    "latam",
-    "azul",
-    "gol",
-    "passagem",
-    "milhas",
-    "promoção"
-]
-
-bonus_maximo = ["100%", "110%", "120%"]
-bonus_alto = ["80%", "90%"]
-
+# ---------- COMANDOS ----------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mensagem = """
+✈️ Radar PRO de Milhas Ativo!
 
-    mensagem = (
-        "✈️ Radar PRO+ de Milhas Ativo!\n\n"
-        "Comandos:\n\n"
-        "🔥 /promocoes - Promoções gerais\n"
-        "💳 /transferencias - Transferência de pontos\n"
-        "✈️ /passagens - Promoções de passagens"
-    )
+Comandos:
 
+🔥 /promocoes – Promoções gerais  
+💳 /transferencias – Transferência de pontos  
+✈️ /passagens – Promoções de passagens
+"""
     await update.message.reply_text(mensagem)
 
 
 async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    resposta = "🔥 Promoções encontradas:\n\n"
-
-    for feed_url in rss_feeds:
-
-        feed = feedparser.parse(feed_url)
-
-        for entry in feed.entries[:5]:
-
-            titulo = entry.title
-            link = entry.link
-
-            if any(p in titulo.lower() for p in palavras_chave):
-
-                resposta += f"{titulo}\n{link}\n\n"
-
-    await update.message.reply_text(resposta)
+    await enviar_promocoes(update)
 
 
 async def transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    resposta = "💳 Promoções de transferência:\n\n"
-
-    for feed_url in rss_feeds:
-
-        feed = feedparser.parse(feed_url)
-
-        for entry in feed.entries[:5]:
-
-            titulo = entry.title.lower()
-
-            if "transfer" in titulo or "livelo" in titulo:
-
-                resposta += f"{entry.title}\n{entry.link}\n\n"
-
-    await update.message.reply_text(resposta)
+    await enviar_transferencias(update)
 
 
 async def passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await enviar_passagens(update)
 
-    resposta = "✈️ Promoções de passagens:\n\n"
 
-    for feed_url in rss_feeds:
+# ---------- BUSCA RSS ----------
 
-        feed = feedparser.parse(feed_url)
+async def enviar_promocoes(update):
+    texto = "🔥 Promoções encontradas:\n\n"
+
+    for url in RSS_FEEDS:
+        feed = feedparser.parse(url)
+
+        for entry in feed.entries[:3]:
+            texto += f"{entry.title}\n{entry.link}\n\n"
+
+    await update.message.reply_text(texto)
+
+
+async def enviar_transferencias(update):
+    texto = "💳 Promoções de transferência:\n\n"
+
+    for url in RSS_FEEDS:
+        feed = feedparser.parse(url)
 
         for entry in feed.entries[:5]:
-
             titulo = entry.title.lower()
 
-            if "passagem" in titulo:
+            if "transfer" in titulo or "bônus" in titulo or "bonus" in titulo:
+                texto += f"{entry.title}\n{entry.link}\n\n"
 
-                resposta += f"{entry.title}\n{entry.link}\n\n"
+    if texto == "💳 Promoções de transferência:\n\n":
+        texto += "Nenhuma promoção encontrada agora."
 
-    await update.message.reply_text(resposta)
+    await update.message.reply_text(texto)
 
+
+async def enviar_passagens(update):
+    texto = "✈️ Promoções de passagens:\n\n"
+
+    for url in RSS_FEEDS:
+        feed = feedparser.parse(url)
+
+        for entry in feed.entries[:5]:
+            titulo = entry.title.lower()
+
+            if "passagem" in titulo or "voo" in titulo or "milhas" in titulo:
+                texto += f"{entry.title}\n{entry.link}\n\n"
+
+    if texto == "✈️ Promoções de passagens:\n\n":
+        texto += "Nenhuma promoção encontrada agora."
+
+    await update.message.reply_text(texto)
+
+
+# ---------- MONITOR AUTOMÁTICO ----------
 
 async def monitorar(context: ContextTypes.DEFAULT_TYPE):
 
-    global ULTIMO_ALERTA
+    texto = ""
 
-    for feed_url in rss_feeds:
+    for url in RSS_FEEDS:
+        feed = feedparser.parse(url)
 
-        feed = feedparser.parse(feed_url)
+        for entry in feed.entries[:2]:
 
-        for entry in feed.entries[:5]:
+            titulo = entry.title.lower()
 
-            titulo = entry.title
-            link = entry.link
+            if "100%" in titulo:
+                texto += f"🚨 ALERTA MÁXIMO DE BÔNUS\n{entry.title}\n{entry.link}\n\n"
 
-            if titulo == ULTIMO_ALERTA:
-                continue
+            elif "80%" in titulo or "90%" in titulo:
+                texto += f"🔥 BÔNUS ALTO\n{entry.title}\n{entry.link}\n\n"
 
-            if any(b in titulo for b in bonus_maximo):
+    if texto:
+        await context.bot.send_message(chat_id=CHAT_ID, text=texto)
 
-                ULTIMO_ALERTA = titulo
 
-                await context.bot.send_message(
-                    chat_id=context.job.chat_id,
-                    text=f"🚨 ALERTA MÁXIMO DE BÔNUS\n\n{titulo}\n{link}"
-                )
-
-                return
-
-            if any(b in titulo for b in bonus_alto):
-
-                ULTIMO_ALERTA = titulo
-
-                await context.bot.send_message(
-                    chat_id=context.job.chat_id,
-                    text=f"🔥 BÔNUS ALTO DETECTADO\n\n{titulo}\n{link}"
-                )
-
-                return
-
+# ---------- INICIAR BOT ----------
 
 app = ApplicationBuilder().token(TOKEN).build()
 
@@ -159,13 +122,13 @@ app.add_handler(CommandHandler("promocoes", promocoes))
 app.add_handler(CommandHandler("transferencias", transferencias))
 app.add_handler(CommandHandler("passagens", passagens))
 
+# JobQueue corrigido
 job_queue = app.job_queue
 
 job_queue.run_repeating(
     monitorar,
     interval=600,
-    first=10,
-    chat_id=chat_id
+    first=10
 )
 
 app.run_polling()
