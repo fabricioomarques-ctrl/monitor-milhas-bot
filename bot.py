@@ -1,11 +1,11 @@
 import os
 import requests
+import feedparser
 from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 TOKEN = os.environ["TELEGRAM_TOKEN"]
-
 chat_id = 5006505664
 
 ULTIMO_ALERTA = ""
@@ -14,6 +14,12 @@ sites = [
     "https://www.melhoresdestinos.com.br/",
     "https://passageirodeprimeira.com/",
     "https://www.melhorescartoes.com.br/"
+]
+
+rss_feeds = [
+    "https://www.melhoresdestinos.com.br/feed",
+    "https://passageirodeprimeira.com/feed",
+    "https://www.melhorescartoes.com.br/feed"
 ]
 
 palavras_chave = [
@@ -39,7 +45,7 @@ bonus_alto = ["80%", "90%"]
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mensagem = (
-        "✈️ Radar PRO de Milhas Ativo!\n\n"
+        "✈️ Radar PRO+ de Milhas Ativo!\n\n"
         "Comandos:\n\n"
         "🔥 /promocoes - Promoções gerais\n"
         "💳 /transferencias - Transferência de pontos\n"
@@ -53,30 +59,18 @@ async def promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     resposta = "🔥 Promoções encontradas:\n\n"
 
-    for site in sites:
+    for feed_url in rss_feeds:
 
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(site, headers=headers)
+        feed = feedparser.parse(feed_url)
 
-        soup = BeautifulSoup(response.text, "html.parser")
+        for entry in feed.entries[:5]:
 
-        links = soup.find_all("a")
+            titulo = entry.title
+            link = entry.link
 
-        for link in links:
+            if any(p in titulo.lower() for p in palavras_chave):
 
-            titulo = link.text.strip()
-            url = link.get("href")
-
-            if not url:
-                continue
-
-            titulo_lower = titulo.lower()
-
-            if any(p in titulo_lower for p in palavras_chave):
-
-                if url.startswith("http"):
-
-                    resposta += f"{titulo}\n{url}\n\n"
+                resposta += f"{titulo}\n{link}\n\n"
 
     await update.message.reply_text(resposta)
 
@@ -85,30 +79,17 @@ async def transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     resposta = "💳 Promoções de transferência:\n\n"
 
-    for site in sites:
+    for feed_url in rss_feeds:
 
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(site, headers=headers)
+        feed = feedparser.parse(feed_url)
 
-        soup = BeautifulSoup(response.text, "html.parser")
+        for entry in feed.entries[:5]:
 
-        links = soup.find_all("a")
+            titulo = entry.title.lower()
 
-        for link in links:
+            if "transfer" in titulo or "livelo" in titulo:
 
-            titulo = link.text.strip()
-            url = link.get("href")
-
-            if not url:
-                continue
-
-            titulo_lower = titulo.lower()
-
-            if "transfer" in titulo_lower or "livelo" in titulo_lower:
-
-                if url.startswith("http"):
-
-                    resposta += f"{titulo}\n{url}\n\n"
+                resposta += f"{entry.title}\n{entry.link}\n\n"
 
     await update.message.reply_text(resposta)
 
@@ -117,30 +98,17 @@ async def passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     resposta = "✈️ Promoções de passagens:\n\n"
 
-    for site in sites:
+    for feed_url in rss_feeds:
 
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(site, headers=headers)
+        feed = feedparser.parse(feed_url)
 
-        soup = BeautifulSoup(response.text, "html.parser")
+        for entry in feed.entries[:5]:
 
-        links = soup.find_all("a")
+            titulo = entry.title.lower()
 
-        for link in links:
+            if "passagem" in titulo:
 
-            titulo = link.text.strip()
-            url = link.get("href")
-
-            if not url:
-                continue
-
-            titulo_lower = titulo.lower()
-
-            if "passagem" in titulo_lower:
-
-                if url.startswith("http"):
-
-                    resposta += f"{titulo}\n{url}\n\n"
+                resposta += f"{entry.title}\n{entry.link}\n\n"
 
     await update.message.reply_text(resposta)
 
@@ -149,43 +117,37 @@ async def monitorar(context: ContextTypes.DEFAULT_TYPE):
 
     global ULTIMO_ALERTA
 
-    for site in sites:
+    for feed_url in rss_feeds:
 
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(site, headers=headers)
+        feed = feedparser.parse(feed_url)
 
-        soup = BeautifulSoup(response.text, "html.parser")
+        for entry in feed.entries[:5]:
 
-        links = soup.find_all("a")
-
-        for link in links:
-
-            titulo = link.text.strip()
-            url = link.get("href")
-
-            if not url:
-                continue
+            titulo = entry.title
+            link = entry.link
 
             if titulo == ULTIMO_ALERTA:
                 continue
 
-            if any(bonus in titulo for bonus in bonus_maximo):
+            if any(b in titulo for b in bonus_maximo):
 
                 ULTIMO_ALERTA = titulo
 
-                mensagem = f"🚨 ALERTA MÁXIMO DE BÔNUS\n\n{titulo}\n{url}"
-
-                await context.bot.send_message(chat_id=context.job.chat_id, text=mensagem)
+                await context.bot.send_message(
+                    chat_id=context.job.chat_id,
+                    text=f"🚨 ALERTA MÁXIMO DE BÔNUS\n\n{titulo}\n{link}"
+                )
 
                 return
 
-            if any(bonus in titulo for bonus in bonus_alto):
+            if any(b in titulo for b in bonus_alto):
 
                 ULTIMO_ALERTA = titulo
 
-                mensagem = f"🔥 BÔNUS ALTO DETECTADO\n\n{titulo}\n{url}"
-
-                await context.bot.send_message(chat_id=context.job.chat_id, text=mensagem)
+                await context.bot.send_message(
+                    chat_id=context.job.chat_id,
+                    text=f"🔥 BÔNUS ALTO DETECTADO\n\n{titulo}\n{link}"
+                )
 
                 return
 
