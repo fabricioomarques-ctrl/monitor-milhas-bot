@@ -1,4 +1,4 @@
-from utils.texto import normalizar_texto
+from utils.texto import normalizar_texto, slug_promocao
 
 
 def calcular_score(item):
@@ -41,7 +41,7 @@ def calcular_score(item):
         elif milhas <= 5000:
             score = 7.5
 
-    # fonte oficial vale mais
+    # fonte oficial aumenta um pouco a confiança
     if origem in ("programa", "banco"):
         score += 0.5
 
@@ -49,7 +49,7 @@ def calcular_score(item):
 
 
 def classificar_score(score):
-    if score >= 9:
+    if score >= 9.0:
         return "🔴 PROMOÇÃO IMPERDÍVEL"
     if score >= 7.5:
         return "🟡 PROMOÇÃO MUITO BOA"
@@ -79,17 +79,41 @@ def ordenar_resultados(resultados):
 
 def chave_confirmacao(item):
     titulo = normalizar_texto(item.get("titulo", ""))
-    link = item.get("link", "")
     tipo = item.get("tipo", "")
 
     if tipo == "transferencia_bonificada":
         bonus = str(item.get("bonus", ""))
-        return f"{tipo}|{bonus}|{titulo[:80]}|{link[:80]}"
+        return f"{tipo}|{bonus}|{slug_promocao(titulo)}"
 
     if tipo == "milheiro_barato":
-        return f"{tipo}|{item.get('preco', '')}|{titulo[:80]}"
+        preco = f"{float(item.get('preco', 0)):.2f}"
+        return f"{tipo}|{preco}|{slug_promocao(titulo)}"
 
     if tipo == "passagem_barata":
-        return f"{tipo}|{item.get('milhas', '')}|{titulo[:80]}"
+        milhas = str(item.get("milhas", ""))
+        return f"{tipo}|{milhas}|{slug_promocao(titulo)}"
 
-    return f"{tipo}|{titulo[:80]}|{link[:80]}"
+    return f"{tipo}|{slug_promocao(titulo)}"
+
+
+def chave_duplicacao(item):
+    """
+    Chave estável para não repetir alertas.
+    Não usa link sozinho porque pequenas mudanças podem gerar duplicação.
+    """
+    tipo = item.get("tipo", "")
+    titulo = slug_promocao(item.get("titulo", ""))
+
+    if tipo == "transferencia_bonificada":
+        bonus = str(item.get("bonus", ""))
+        return f"{tipo}|{bonus}|{titulo}"
+
+    if tipo == "milheiro_barato":
+        preco = f"{float(item.get('preco', 0)):.2f}"
+        return f"{tipo}|{preco}|{titulo}"
+
+    if tipo == "passagem_barata":
+        milhas = str(item.get("milhas", ""))
+        return f"{tipo}|{milhas}|{titulo}"
+
+    return f"{tipo}|{titulo}"
