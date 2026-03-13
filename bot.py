@@ -3,7 +3,7 @@ from datetime import datetime
 
 import requests
 
-from config import TELEGRAM_TOKEN, CHAT_ID, INTERVALO, POLL_INTERVAL
+from config import TELEGRAM_TOKEN, CHAT_ID, INTERVALO, POLL_INTERVAL, LIMITE_COMANDO
 from engine.radar import executar_radar
 from storage.estado import (
     carregar_promocoes_enviadas,
@@ -86,35 +86,36 @@ def obter_updates(offset=None):
         return []
 
 
-def montar_mensagem(resultado):
+def chave_resultado(resultado):
+    return f"{resultado.get('tipo')}|{resultado.get('link')}"
+
+
+def montar_alerta(resultado):
     tipo = resultado.get("tipo", "")
     titulo = resultado.get("titulo", "")
     detalhe = resultado.get("detalhe", "")
     link = resultado.get("link", "")
     fonte = resultado.get("fonte", "")
+    score = resultado.get("score", 0)
+    classificacao = resultado.get("classificacao", "⚪ OPORTUNIDADE PADRÃO")
 
     prefixos = {
-        "bonus_alto": "🔥 BÔNUS ALTO DETECTADO",
         "transferencia_bonificada": "🔁 TRANSFERÊNCIA BONIFICADA",
         "milheiro_barato": "💰 MILHEIRO BARATO",
+        "passagem_barata": "✈️ PASSAGEM BARATA",
     }
 
-    prefixo = prefixos.get(
-        tipo,
-        "📡 OPORTUNIDADE DETECTADA"
-    )
+    prefixo = prefixos.get(tipo, "📡 OPORTUNIDADE DETECTADA")
 
     return (
         f"{prefixo}\n\n"
         f"📌 {titulo}\n"
         f"📍 Fonte: {fonte}\n"
-        f"📝 {detalhe}\n\n"
+        f"📝 {detalhe}\n"
+        f"📊 Score: {score}\n"
+        f"{classificacao}\n\n"
         f"{link}"
     )
-
-
-def chave_resultado(resultado):
-    return f"{resultado.get('tipo')}|{resultado.get('link')}"
 
 
 def texto_menu():
@@ -148,7 +149,7 @@ def texto_sem_resultado(titulo):
     return f"{titulo}\n\nNenhuma oportunidade detectada no momento."
 
 
-def formatar_lista_resultados(titulo, resultados, limite=5):
+def formatar_lista_resultados(titulo, resultados, limite=LIMITE_COMANDO):
     if not resultados:
         return texto_sem_resultado(titulo)
 
@@ -159,6 +160,8 @@ def formatar_lista_resultados(titulo, resultados, limite=5):
             f"{i}️⃣ {resultado.get('titulo', '')}\n"
             f"📍 Fonte: {resultado.get('fonte', '')}\n"
             f"📝 {resultado.get('detalhe', '')}\n"
+            f"📊 Score: {resultado.get('score', 0)}\n"
+            f"{resultado.get('classificacao', '⚪ OPORTUNIDADE PADRÃO')}\n"
             f"{resultado.get('link', '')}\n\n"
         )
 
@@ -176,8 +179,7 @@ def executar_teste_manual(chat_id):
         enviar_telegram(
             formatar_lista_resultados(
                 "🧪 Teste do radar",
-                resultados,
-                limite=5
+                resultados
             ),
             chat_id=chat_id
         )
@@ -220,7 +222,7 @@ def processar_comando(texto, chat_id):
     if comando == "/promocoes":
         try:
             resultados = executar_radar()
-            bonus = filtrar_por_tipo(resultados, ["bonus_alto"])
+            bonus = filtrar_por_tipo(resultados, ["transferencia_bonificada"])
             enviar_telegram(
                 formatar_lista_resultados("🔥 Promoções detectadas", bonus),
                 chat_id=chat_id
@@ -242,10 +244,15 @@ def processar_comando(texto, chat_id):
         return
 
     if comando == "/passagens":
-        enviar_telegram(
-            "✈️ Passagens\n\nAinda não implementado nesta nova estrutura.",
-            chat_id=chat_id
-        )
+        try:
+            resultados = executar_radar()
+            passagens = filtrar_por_tipo(resultados, ["passagem_barata"])
+            enviar_telegram(
+                formatar_lista_resultados("✈️ Passagens detectadas", passagens),
+                chat_id=chat_id
+            )
+        except Exception as e:
+            enviar_telegram(f"❌ Erro em /passagens: {e}", chat_id=chat_id)
         return
 
     if comando == "/ranking":
@@ -298,7 +305,7 @@ def executar_ciclo_radar(enviados):
                 print("Resultado já enviado, pulando:", chave)
                 continue
 
-            mensagem = montar_mensagem(resultado)
+            mensagem = montar_alerta(resultado)
 
             if enviar_telegram(mensagem):
                 enviados.add(chave)
@@ -326,7 +333,6 @@ def main():
         print("TELEGRAM_TOKEN não configurado")
 
     enviados = carregar_promocoes_enviadas()
-
     proxima_execucao_radar = 0
 
     while True:
