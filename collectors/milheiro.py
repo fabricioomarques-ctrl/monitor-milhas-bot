@@ -1,9 +1,7 @@
 import requests
-
 from bs4 import BeautifulSoup
 
 from config import MILHEIRO_URLS
-
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
@@ -11,40 +9,25 @@ HEADERS = {
 
 
 def coletar_milheiro():
-
     resultados = []
 
     for nome, url in MILHEIRO_URLS.items():
-
         try:
-
-            r = requests.get(
-                url,
-                headers=HEADERS,
-                timeout=20
-            )
+            r = requests.get(url, headers=HEADERS, timeout=20)
 
             if r.status_code != 200:
                 continue
 
-            soup = BeautifulSoup(
-                r.text,
-                "html.parser"
-            )
-
-            texto = soup.get_text(
-                " ",
-                strip=True
-            )
+            soup = BeautifulSoup(r.text, "html.parser")
+            texto = soup.get_text(" ", strip=True)
 
             resultados.append({
-
+                "origem": "milheiro",
                 "fonte": nome,
-                "titulo": f"Milheiro {nome}",
+                "titulo": f"Mercado de milhas {nome}",
                 "link": url,
                 "texto": texto,
-                "origem": "milheiro"
-
+                "publicado": "",
             })
 
         except Exception:
