@@ -229,7 +229,7 @@ def processar_comando(texto, chat_id):
             enviar_telegram(f"❌ Erro em /promocoes: {e}", chat_id=chat_id)
         return
 
-    if comando in ("/transferencias", "/transferecias"):
+    if comando == "/transferencias":
         try:
             resultados = executar_radar()
             transf = filtrar_por_tipo(resultados, ["transferencia_bonificada"])
