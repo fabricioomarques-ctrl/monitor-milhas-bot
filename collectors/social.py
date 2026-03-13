@@ -8,7 +8,7 @@ HEADERS = {
 }
 
 
-def coletar_social():
+def coletar_social() -> list[dict]:
     resultados = []
 
     for nome, url in SOCIAL_URLS.items():
