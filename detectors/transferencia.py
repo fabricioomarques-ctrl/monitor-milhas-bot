@@ -1,26 +1,29 @@
-from utils.texto import normalizar_texto
+from config import BONUS_MINIMO, KEYWORDS_TRANSFERENCIA
+from utils.texto import normalizar_texto, extrair_percentuais
 
 
-KEYWORDS_TRANSFERENCIA = [
+def detectar_transferencia(item: dict) -> dict | None:
+    texto = normalizar_texto(item.get("texto", ""))
 
-    "transferencia bonificada",
-    "bonus de transferencia",
-    "bônus de transferência",
+    if not any(normalizar_texto(k) in texto for k in KEYWORDS_TRANSFERENCIA):
+        return None
 
-    "transferir pontos",
-    "transfira seus pontos",
+    percentuais = extrair_percentuais(texto)
 
-    "bonificada",
-]
+    if not percentuais:
+        return None
 
+    bonus = max(percentuais)
 
-def detectar_transferencia(texto):
+    if bonus < BONUS_MINIMO:
+        return None
 
-    texto = normalizar_texto(texto)
-
-    for palavra in KEYWORDS_TRANSFERENCIA:
-
-        if palavra in texto:
-            return True
-
-    return False
+    return {
+        "tipo": "transferencia_bonificada",
+        "origem": item.get("origem", ""),
+        "fonte": item.get("fonte", ""),
+        "titulo": item.get("titulo", ""),
+        "link": item.get("link", ""),
+        "detalhe": f"Transferência bonificada com {bonus}% de bônus",
+        "bonus": bonus,
+    }
