@@ -7,7 +7,7 @@ from config import (
     TELEGRAM_TOKEN,
     CHAT_ID,
     CANAL_ID,
-    INTERVALO,
+    INTERVALO_RADAR,
     POLL_INTERVAL,
     LIMITE_COMANDO,
     SCORE_MINIMO_ALERTA,
@@ -15,9 +15,9 @@ from config import (
 )
 from engine.radar import executar_radar
 from engine.scoring import chave_duplicacao
-from storage.estado import (
-    carregar_promocoes_enviadas,
-    salvar_promocoes_enviadas
+from storage.deduplicador import (
+    carregar_alertas_enviados,
+    salvar_alertas_enviados,
 )
 
 
@@ -26,13 +26,14 @@ LAST_RESULTS_COUNT = 0
 LAST_SENT_COUNT = 0
 LAST_ERROR = ""
 LAST_UPDATE_ID = None
+LAST_SOURCE_SUMMARY = {}
 
 
-def telegram_api_url(method):
+def telegram_api_url(method: str) -> str:
     return f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/{method}"
 
 
-def destinos_alerta():
+def destinos_alerta() -> list[str]:
     destinos = []
 
     if CHAT_ID:
@@ -44,7 +45,7 @@ def destinos_alerta():
     return destinos
 
 
-def enviar_telegram(mensagem, chat_id=None):
+def enviar_telegram(mensagem: str, chat_id: str | None = None) -> bool:
     if not TELEGRAM_TOKEN:
         print("Telegram não configurado")
         return False
@@ -60,10 +61,7 @@ def enviar_telegram(mensagem, chat_id=None):
         try:
             r = requests.post(
                 telegram_api_url("sendMessage"),
-                json={
-                    "chat_id": destino,
-                    "text": mensagem
-                },
+                json={"chat_id": destino, "text": mensagem},
                 timeout=20
             )
 
@@ -78,7 +76,7 @@ def enviar_telegram(mensagem, chat_id=None):
     return sucesso
 
 
-def obter_updates(offset=None):
+def obter_updates(offset: int | None = None) -> list[dict]:
     if not TELEGRAM_TOKEN:
         return []
 
@@ -113,7 +111,7 @@ def obter_updates(offset=None):
         return []
 
 
-def montar_alerta_consolidado(resultados):
+def montar_alerta_consolidado(resultados: list[dict]) -> str:
     if not resultados:
         return ""
 
@@ -132,9 +130,9 @@ def montar_alerta_consolidado(resultados):
     return msg.strip()
 
 
-def texto_menu():
+def texto_menu() -> str:
     return (
-        "✈️ Radar de Milhas PRO\n\n"
+        "✈️ Radar de Milhas PRO v3\n\n"
         "/menu\n"
         "/promocoes\n"
         "/transferencias\n"
@@ -145,13 +143,13 @@ def texto_menu():
     )
 
 
-def texto_status():
+def texto_status() -> str:
     ultima_execucao = LAST_RADAR_RUN or "ainda não executado"
     erro = LAST_ERROR or "nenhum"
 
     return (
         "🟢 Radar online\n\n"
-        f"⏱ Intervalo do radar: {INTERVALO} segundos\n"
+        f"⏱ Intervalo do radar: {INTERVALO_RADAR} segundos\n"
         f"📥 Últimos resultados encontrados: {LAST_RESULTS_COUNT}\n"
         f"📤 Últimos alertas enviados: {LAST_SENT_COUNT}\n"
         f"🕒 Última execução: {ultima_execucao}\n"
@@ -159,11 +157,11 @@ def texto_status():
     )
 
 
-def texto_sem_resultado(titulo):
+def texto_sem_resultado(titulo: str) -> str:
     return f"{titulo}\n\nNenhuma oportunidade detectada no momento."
 
 
-def formatar_lista_resultados(titulo, resultados, limite=LIMITE_COMANDO):
+def formatar_lista_resultados(titulo: str, resultados: list[dict], limite: int = LIMITE_COMANDO) -> str:
     if not resultados:
         return texto_sem_resultado(titulo)
 
@@ -183,30 +181,22 @@ def formatar_lista_resultados(titulo, resultados, limite=LIMITE_COMANDO):
     return msg.strip()
 
 
-def filtrar_por_tipo(resultados, tipos):
+def filtrar_por_tipo(resultados: list[dict], tipos: list[str]) -> list[dict]:
     return [r for r in resultados if r.get("tipo") in tipos]
 
 
-def executar_teste_manual(chat_id):
+def executar_teste_manual(chat_id: str) -> None:
     try:
         resultados = executar_radar()
-
         enviar_telegram(
-            formatar_lista_resultados(
-                "🧪 Teste do radar",
-                resultados
-            ),
+            formatar_lista_resultados("🧪 Teste do radar", resultados),
             chat_id=chat_id
         )
-
     except Exception as e:
-        enviar_telegram(
-            f"❌ Erro no /teste: {e}",
-            chat_id=chat_id
-        )
+        enviar_telegram(f"❌ Erro no /teste: {e}", chat_id=chat_id)
 
 
-def processar_comando(texto, chat_id):
+def processar_comando(texto: str, chat_id: str) -> None:
     comando = str(texto or "").strip().lower()
 
     if comando == "/start":
@@ -282,7 +272,7 @@ def processar_comando(texto, chat_id):
         return
 
 
-def processar_updates():
+def processar_updates() -> None:
     global LAST_UPDATE_ID
 
     updates = obter_updates(
@@ -304,7 +294,7 @@ def processar_updates():
             processar_comando(text, chat_id)
 
 
-def executar_ciclo_radar(enviados):
+def executar_ciclo_radar(alertas_enviados: set) -> None:
     global LAST_RADAR_RUN, LAST_RESULTS_COUNT, LAST_SENT_COUNT, LAST_ERROR
 
     enviados_nesta_execucao = 0
@@ -321,18 +311,19 @@ def executar_ciclo_radar(enviados):
 
             chave = chave_duplicacao(resultado)
 
-            if chave in enviados:
+            if chave in alertas_enviados:
                 continue
 
             fortes.append(resultado)
-            enviados.add(chave)
+            alertas_enviados.add(chave)
 
         if fortes:
             mensagem = montar_alerta_consolidado(fortes)
+
             if mensagem and enviar_telegram(mensagem):
                 enviados_nesta_execucao = len(fortes)
 
-        salvar_promocoes_enviadas(enviados)
+        salvar_alertas_enviados(alertas_enviados)
 
         LAST_SENT_COUNT = enviados_nesta_execucao
         LAST_ERROR = ""
@@ -347,13 +338,13 @@ def executar_ciclo_radar(enviados):
         print("Erro loop:", e)
 
 
-def main():
-    print("Radar iniciado")
+def main() -> None:
+    print("Radar de Milhas PRO v3 iniciado")
 
     if not TELEGRAM_TOKEN:
         print("TELEGRAM_TOKEN não configurado")
 
-    enviados = carregar_promocoes_enviadas()
+    alertas_enviados = carregar_alertas_enviados()
     proxima_execucao_radar = 0
 
     while True:
@@ -362,8 +353,8 @@ def main():
         agora = time.time()
 
         if agora >= proxima_execucao_radar:
-            executar_ciclo_radar(enviados)
-            proxima_execucao_radar = agora + INTERVALO
+            executar_ciclo_radar(alertas_enviados)
+            proxima_execucao_radar = agora + INTERVALO_RADAR
 
         time.sleep(POLL_INTERVAL)
 
