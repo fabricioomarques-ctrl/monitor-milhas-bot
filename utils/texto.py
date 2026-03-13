@@ -15,7 +15,7 @@ def limpar_espacos(texto: str) -> str:
 
 def extrair_percentuais(texto: str) -> list[int]:
     texto = normalizar_texto(texto)
-    return [int(x) for x in re.findall(r"(\d{2,3})\s?%", texto)]
+    return [int(x) for x in re.findall(r"(\d{1,3})\s?%", texto)]
 
 
 def extrair_precos_reais(texto: str) -> list[float]:
@@ -35,7 +35,7 @@ def extrair_precos_reais(texto: str) -> list[float]:
 
 def extrair_valores_milhas(texto: str) -> list[int]:
     texto = normalizar_texto(texto)
-    encontrados = re.findall(r"(\d{1,3}(?:\.\d{3})+|\d{3,5})\s+milhas", texto)
+    encontrados = re.findall(r"(\d{1,3}(?:\.\d{3})+|\d{3,6})\s+milhas", texto)
 
     valores = []
 
@@ -52,4 +52,4 @@ def slug_texto(texto: str) -> str:
     texto = normalizar_texto(texto)
     texto = re.sub(r"[^a-z0-9]+", "-", texto)
     texto = re.sub(r"-+", "-", texto).strip("-")
-    return texto[:120]
+    return texto[:140]
