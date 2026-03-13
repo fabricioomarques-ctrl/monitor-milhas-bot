@@ -8,8 +8,11 @@ from datetime import datetime
 
 import requests
 import feedparser
+import urllib3
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # =========================================================
 # CONFIGURAÇÃO GERAL
@@ -23,8 +26,8 @@ ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", CHAT_ID).strip()
 PROMOCOES_FILE = "promocoes_enviadas.json"
 DASHBOARD_FILE = "dashboard_metrics.json"
 
-REQUEST_TIMEOUT = 20
-RADAR_INTERVAL_SECONDS = 600  # 10 minutos
+REQUEST_TIMEOUT = 12
+RADAR_INTERVAL_SECONDS = 600
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,98 +43,107 @@ if not CANAL_ID:
 # =========================================================
 # FONTES MONITORADAS (14)
 # =========================================================
+# Mantidas as fontes estratégicas oficiais: LATAM, Smiles, Esfera.
+# Ajuste do PPV feito com URLs/categorias mais estáveis.
 
 FONTES = [
-    # BLOGS
+    # RSS principais
     {
-        "name": "Pontos pra Voar",
+        "name": "Pontos pra Voar Feed",
         "type": "rss",
-        "url": "https://www.pontospravoar.com/feed",
+        "url": "https://pontospravoar.com/feed",
         "group": "blogs",
     },
     {
-        "name": "Passageiro de Primeira",
+        "name": "Passageiro de Primeira Feed",
         "type": "rss",
         "url": "https://passageirodeprimeira.com/feed",
         "group": "blogs",
     },
     {
-        "name": "Melhores Destinos",
+        "name": "Melhores Destinos Feed",
         "type": "rss",
         "url": "https://www.melhoresdestinos.com.br/feed",
         "group": "blogs",
     },
     {
-        "name": "AEROIN",
+        "name": "AEROIN Feed",
         "type": "rss",
         "url": "https://www.aeroin.net/feed",
         "group": "blogs",
     },
 
-    # PROGRAMAS
+    # PPV categorias atuais / páginas estáveis
     {
-        "name": "Smiles",
+        "name": "PPV LATAM Pass",
+        "type": "html",
+        "url": "https://pontospravoar.com/category/programas-de-fidelidade/latam-pass/",
+        "group": "programas",
+    },
+    {
+        "name": "PPV Smiles",
+        "type": "html",
+        "url": "https://pontospravoar.com/category/programas-de-fidelidade/smiles/",
+        "group": "programas",
+    },
+    {
+        "name": "PPV Esfera",
+        "type": "html",
+        "url": "https://pontospravoar.com/category/programas-de-fidelidade/esfera/",
+        "group": "programas",
+    },
+    {
+        "name": "PPV Azul Fidelidade",
+        "type": "html",
+        "url": "https://pontospravoar.com/category/programas-de-fidelidade/azul-fidelidade/",
+        "group": "programas",
+    },
+    {
+        "name": "PPV Home",
+        "type": "html",
+        "url": "https://pontospravoar.com/",
+        "group": "redes_sociais",
+    },
+
+    # Fontes oficiais importantes
+    {
+        "name": "LATAM Pass Oficial",
+        "type": "html",
+        "url": "https://latampass.latam.com/pt_br/",
+        "group": "programas",
+        "fallback_urls": [
+            "https://www.latamairlines.com/br/pt/ofertas",
+        ],
+    },
+    {
+        "name": "Smiles Oficial",
         "type": "html",
         "url": "https://www.smiles.com.br/",
         "group": "programas",
     },
     {
-        "name": "LATAM Pass",
+        "name": "Esfera Oficial",
         "type": "html",
-        "url": "https://latampass.latam.com/pt_br/",
+        "url": "https://www.esfera.com.vc/",
         "group": "programas",
     },
     {
-        "name": "TudoAzul",
+        "name": "TudoAzul Oficial",
         "type": "html",
         "url": "https://www.tudoazul.com/",
         "group": "programas",
     },
     {
-        "name": "Livelo",
+        "name": "Livelo Oficial",
         "type": "html",
         "url": "https://www.livelo.com.br/",
         "group": "programas",
     },
     {
-        "name": "Esfera",
-        "type": "html",
-        "url": "https://www.esfera.com.vc/",
-        "group": "programas",
-    },
-
-    # MERCADO DE MILHAS
-    {
-        "name": "MaxMilhas",
+        "name": "MaxMilhas Oficial",
         "type": "html",
         "url": "https://www.maxmilhas.com.br/",
         "group": "milheiro",
-    },
-    {
-        "name": "HotMilhas",
-        "type": "html",
-        "url": "https://www.hotmilhas.com.br/",
-        "group": "milheiro",
-    },
-    {
-        "name": "Mercado de Milhas",
-        "type": "html",
-        "url": "https://mercadodemilhas.com/",
-        "group": "milheiro",
-    },
-
-    # REDES / ALERTAS
-    {
-        "name": "Alerta Passagens",
-        "type": "html",
-        "url": "https://www.pontospravoar.com/tag/alerta-de-passagens/",
-        "group": "redes_sociais",
-    },
-    {
-        "name": "Promoções Programas",
-        "type": "html",
-        "url": "https://www.pontospravoar.com/",
-        "group": "redes_sociais",
     },
 ]
 
@@ -160,8 +172,7 @@ def load_json_file(path: str, default):
         if not os.path.exists(path):
             return default
         with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data
+            return json.load(f)
     except Exception as e:
         logger.exception("Falha ao carregar %s: %s", path, e)
         return default
@@ -176,9 +187,7 @@ def save_json_file(path: str, data):
 
 
 def ensure_promocoes_list(data):
-    if isinstance(data, list):
-        return data
-    return []
+    return data if isinstance(data, list) else []
 
 
 def load_state():
@@ -187,7 +196,6 @@ def load_state():
 
     STATE["promocoes"] = saved_promos
     STATE["sent_ids"] = {p["id"] for p in saved_promos if isinstance(p, dict) and "id" in p}
-
     STATE["ultimos_alertas_enviados"] = metrics.get("ultimos_alertas_enviados", 0)
     STATE["ultima_execucao"] = metrics.get("ultima_execucao")
     STATE["ultimo_erro"] = metrics.get("ultimo_erro", "nenhum")
@@ -231,91 +239,87 @@ async def deny_admin(update: Update):
     await update.message.reply_text("⛔ Comando disponível apenas para o administrador.")
 
 # =========================================================
-# NORMALIZAÇÃO E FILTRO
+# TEXTO / FILTRO
 # =========================================================
 
-RUIDOS = [
+HARD_BLOCK = [
     "shopee",
     "amazon",
     "mercado livre",
     "magalu",
+    "assist card",
+    "seguro",
+    "lounge",
+    "salas vip",
+    "sunset mineiro",
+    "hotel",
+    "diárias",
+    "cupom",
     "cashback",
     "varejo",
-    "cupom",
     "desconto em compras",
-    "shopping",
-    "shopping de pontos",
-    "loja parceira",
     "produto físico",
-    "echo show",
-    "seculus",
-    "guess",
     "hero seguros",
-    "loung",
-    "lounge",
-    "bh airport",
+    "guess",
+    "seculus",
+    "lojas parceiras",
+    "pontos por real",
+    "ofertas com até",
 ]
 
-KEYWORDS_TRANSFERENCIA = [
-    "transferência",
-    "transferencia",
-    "bônus de transferência",
-    "bonus de transferencia",
-    "transfira",
-    "transfere",
-    "esfera",
-    "livelo",
+PROGRAMS = [
     "smiles",
     "latam pass",
-    "tudoazul",
-]
-
-KEYWORDS_PASSAGENS = [
-    "passagens",
-    "passagem",
-    "resgate",
-    "voos",
-    "trechos",
-    "alerta de passagens",
-    "voo",
-    "pontos azul",
+    "latam",
     "azul fidelidade",
+    "tudoazul",
+    "livelo",
+    "esfera",
+    "connectmiles",
+    "all accor",
+    "accor",
 ]
 
-KEYWORDS_MILHEIRO = [
+PASSAGENS_HINTS = [
+    "alerta de passagens",
+    "resgate",
+    "trechos",
+    "milhas",
+    "pontos",
+    "voos",
+    "passagens",
+    "ida e volta",
+    "o trecho",
+]
+
+TRANSFER_HINTS = [
+    "bônus na transferência",
+    "bonus na transferencia",
+    "transferência de pontos",
+    "transferencia de pontos",
+    "transferências bonificadas",
+    "transferencias bonificadas",
+    "transfira pontos",
+    "transfira seus pontos",
+    "receba até",
+    "ganhou!",
+]
+
+MILHEIRO_HINTS = [
     "milheiro",
+    "maxmilhas",
     "compra de milhas",
     "venda de milhas",
     "mercado de milhas",
-    "maxmilhas",
-    "hotmilhas",
 ]
 
-KEYWORDS_PROMO = [
-    "bônus",
-    "bonus",
-    "promoção",
-    "promocao",
-    "oferece",
-    "assine",
-    "clube",
-    "campanha",
-    "receba",
-    "segue valendo",
-    "acaba hoje",
+CLUBE_HINTS = [
+    "clube smiles",
+    "clube livelo",
+    "clube esfera",
+    "clube azul",
+    "clube latam pass",
 ]
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/123.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Cache-Control": "no-cache",
-    "Pragma": "no-cache",
-}
 
 def strip_html_tags(text: str) -> str:
     text = re.sub(r"<script.*?>.*?</script>", " ", text, flags=re.S | re.I)
@@ -331,11 +335,26 @@ def normalize_text(text: str) -> str:
     return text
 
 
+def has_any(text: str, keywords: list[str]) -> bool:
+    return any(k in text for k in keywords)
+
+
 def filtro_profissional(title: str, content: str) -> bool:
     combined = normalize_text(f"{title} {content}")
-    for ruido in RUIDOS:
-        if ruido in combined:
-            return False
+
+    if has_any(combined, HARD_BLOCK):
+        return False
+
+    # só passa se tiver de fato contexto de milhas/pontos/programa
+    if not (
+        has_any(combined, PROGRAMS)
+        or has_any(combined, PASSAGENS_HINTS)
+        or has_any(combined, TRANSFER_HINTS)
+        or has_any(combined, MILHEIRO_HINTS)
+        or has_any(combined, CLUBE_HINTS)
+    ):
+        return False
+
     return True
 
 
@@ -344,7 +363,7 @@ def build_item_id(source_name: str, title: str, link: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
 # =========================================================
-# SCORE / CLASSIFICAÇÃO
+# CLASSIFICAÇÃO
 # =========================================================
 
 def detect_price_brl(text: str):
@@ -361,37 +380,59 @@ def detect_price_brl(text: str):
 def classify_type(title: str, content: str) -> str:
     combined = normalize_text(f"{title} {content}")
 
-    if any(k in combined for k in KEYWORDS_PASSAGENS):
-        return "passagens"
-
-    if any(k in combined for k in KEYWORDS_TRANSFERENCIA):
-        return "transferencias"
-
-    if any(k in combined for k in KEYWORDS_MILHEIRO):
+    # milheiro é prioridade
+    if has_any(combined, MILHEIRO_HINTS):
         return "milheiro"
 
-    return "promocoes"
+    # transferência só entra se houver contexto claro
+    if (
+        has_any(combined, TRANSFER_HINTS)
+        and has_any(combined, PROGRAMS)
+        and "seguro" not in combined
+        and "assist card" not in combined
+        and "cupom" not in combined
+    ):
+        return "transferencias"
+
+    # passagens só entra se houver contexto claro de emissão/resgate/voos com milhas/pontos
+    if (
+        has_any(combined, PASSAGENS_HINTS)
+        and (
+            "milhas" in combined
+            or "pontos" in combined
+            or has_any(combined, PROGRAMS)
+        )
+    ):
+        return "passagens"
+
+    # promoção geral só se for clube / bônus / assinatura com pontos/milhas
+    if (
+        has_any(combined, CLUBE_HINTS)
+        or ("bônus" in combined or "bonus" in combined)
+        or ("assine" in combined and has_any(combined, PROGRAMS))
+    ):
+        return "promocoes"
+
+    return "ignorar"
 
 
 def infer_program(source_name: str, title: str, content: str) -> str:
     combined = normalize_text(f"{source_name} {title} {content}")
 
-    if "maxmilhas" in combined:
-        return "Mercado de Milhas"
-    if "hotmilhas" in combined:
-        return "Mercado de Milhas"
-    if "mercado de milhas" in combined:
+    if "maxmilhas" in combined or "milheiro" in combined:
         return "Mercado de Milhas"
     if "smiles" in combined:
         return "Smiles"
     if "latam pass" in combined or "latam" in combined:
         return "LATAM Pass"
-    if "tudoazul" in combined or "azul fidelidade" in combined:
+    if "azul fidelidade" in combined or "tudoazul" in combined:
         return "TudoAzul"
     if "livelo" in combined:
         return "Livelo"
     if "esfera" in combined:
         return "Esfera"
+    if "all accor" in combined or "accor" in combined:
+        return "ALL Accor"
     return source_name
 
 
@@ -421,17 +462,19 @@ def classify_score(title: str, content: str, promo_type: str):
             return 8.0, price
         if "60%" in combined or "60 %" in combined:
             return 7.5, price
-        return 7.0, price
+        return 7.2, price
 
     if promo_type == "passagens":
         if "a partir de" in combined or "resgate" in combined or "trechos" in combined:
             return 7.5, price
+        return 7.2, price
+
+    if promo_type == "promocoes":
+        if "clube" in combined and ("milhas" in combined or "pontos" in combined):
+            return 7.6, price
         return 7.0, price
 
-    if any(k in combined for k in KEYWORDS_PROMO):
-        return 7.0, price
-
-    return 6.5, price
+    return 0.0, price
 
 
 def classificar_promocao(score: float) -> str:
@@ -454,14 +497,16 @@ def classificador_ia_local(title: str, content: str, promo_type: str, score: flo
     elif score >= 7.5:
         prioridade = "média"
 
-    antecipada = any(k in combined for k in [
-        "campanha",
-        "landing page",
-        "banner",
-        "segue valendo",
-        "acaba hoje",
-        "assine",
-    ])
+    antecipada = any(
+        k in combined for k in [
+            "campanha",
+            "banner",
+            "segue valendo",
+            "acaba hoje",
+            "último dia",
+            "apenas hoje",
+        ]
+    )
 
     return {
         "tipo": promo_type,
@@ -474,17 +519,55 @@ def classificador_ia_local(title: str, content: str, promo_type: str, score: flo
 # COLETA
 # =========================================================
 
-def fetch_url(url: str) -> str:
-    response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/123.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+}
+
+def fetch_url(url: str, verify_ssl=True) -> str:
+    response = requests.get(
+        url,
+        headers=HEADERS,
+        timeout=REQUEST_TIMEOUT,
+        allow_redirects=True,
+        verify=verify_ssl,
+    )
     response.raise_for_status()
     return response.text
+
+
+def fetch_with_fallbacks(source: dict) -> str:
+    candidates = [source["url"]] + source.get("fallback_urls", [])
+
+    last_error = None
+    for url in candidates:
+        try:
+            return fetch_url(url, verify_ssl=True)
+        except requests.exceptions.SSLError:
+            try:
+                return fetch_url(url, verify_ssl=False)
+            except Exception as e2:
+                last_error = e2
+        except Exception as e:
+            last_error = e
+
+    if last_error:
+        raise last_error
+    raise RuntimeError("Falha sem detalhe ao carregar fonte.")
 
 
 def collect_rss(source: dict) -> list:
     items = []
     feed = feedparser.parse(source["url"])
 
-    for entry in feed.entries[:20]:
+    for entry in feed.entries[:25]:
         title = getattr(entry, "title", "").strip()
         link = getattr(entry, "link", "").strip()
         summary = getattr(entry, "summary", "") or getattr(entry, "description", "")
@@ -504,22 +587,26 @@ def collect_rss(source: dict) -> list:
 
 def collect_html(source: dict) -> list:
     items = []
-    text = fetch_url(source["url"])
+    text = fetch_with_fallbacks(source)
     clean_text = strip_html_tags(text)
     text_norm = normalize_text(clean_text)
 
     patterns = [
-        r"[^.!?\n]{0,120}(milheiro[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,120}(transfer[êe]ncia[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,120}(b[oô]nus[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,120}(passagens?[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,120}(resgate[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,120}(clube[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,120}(latam[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,120}(smiles[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,120}(livelo[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,120}(esfera[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,120}(azul[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(milheiro[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(b[oô]nus na transfer[êe]ncia[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(transfer[êe]ncia de pontos[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(transfira pontos[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(alerta de passagens[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(resgate[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(trechos[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(clube smiles[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(clube livelo[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(clube esfera[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(latam pass[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(smiles[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(esfera[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(azul fidelidade[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,80}(livelo[^.!?\n]{0,220})",
     ]
 
     found_snippets = []
@@ -530,14 +617,14 @@ def collect_html(source: dict) -> list:
     seen = set()
     for snippet in found_snippets:
         snippet = snippet.strip()
-        if len(snippet) < 20:
+        if len(snippet) < 18:
             continue
         if snippet in seen:
             continue
         seen.add(snippet)
         unique_snippets.append(snippet)
 
-    for snippet in unique_snippets[:8]:
+    for snippet in unique_snippets[:12]:
         title = snippet[:180].strip().capitalize()
         items.append({
             "source_name": source["name"],
@@ -578,7 +665,7 @@ def coletar_todas_fontes() -> list:
     return results
 
 # =========================================================
-# CONFIRMAÇÃO MULTI-FONTE
+# CONFIRMAÇÃO / PROMOÇÕES
 # =========================================================
 
 def title_signature(text: str) -> str:
@@ -600,9 +687,6 @@ def calcular_confirmacoes(candidates: list) -> dict:
         confirmations[sig] = len({g["source_name"] for g in grouped})
     return confirmations
 
-# =========================================================
-# PROMOÇÕES
-# =========================================================
 
 def transformar_em_promocoes(raw_items: list) -> list:
     promotions = []
@@ -617,7 +701,13 @@ def transformar_em_promocoes(raw_items: list) -> list:
             continue
 
         promo_type = classify_type(title, content)
+        if promo_type == "ignorar":
+            continue
+
         score, price = classify_score(title, content, promo_type)
+        if score < 7.0:
+            continue
+
         program = infer_program(item["source_name"], title, content)
         sig = title_signature(title)
         fontes_confirmadas = confirmations.get(sig, 1)
@@ -647,18 +737,13 @@ def transformar_em_promocoes(raw_items: list) -> list:
 
 
 def promo_resumo_ranking(promo: dict) -> str:
-    promo_type = promo["type"]
     score = promo["score"]
-
-    if promo_type == "milheiro":
+    if promo["type"] == "milheiro":
         return f"Milheiro barato | score {score}"
-
-    if promo_type == "passagens":
+    if promo["type"] == "passagens":
         return f"Alerta de passagens | score {score}"
-
-    if promo_type == "transferencias":
+    if promo["type"] == "transferencias":
         return f"Transferência bonificada | score {score}"
-
     return f"Promoção | score {score}"
 
 
@@ -678,13 +763,11 @@ def format_promo_alert(promo: dict) -> str:
     linhas.append("")
     linhas.append("Link:")
     linhas.append(promo["link"])
-
     return "\n".join(linhas)
 
 
 async def enviar_alerta_canal(context: ContextTypes.DEFAULT_TYPE, promo: dict):
-    mensagem = format_promo_alert(promo)
-    await context.bot.send_message(chat_id=CANAL_ID, text=mensagem)
+    await context.bot.send_message(chat_id=CANAL_ID, text=format_promo_alert(promo))
 
 
 def adicionar_promocao_se_nova(promo: dict) -> bool:
@@ -700,7 +783,7 @@ def adicionar_promocao_se_nova(promo: dict) -> bool:
     return True
 
 # =========================================================
-# EXECUÇÃO DO RADAR
+# RADAR
 # =========================================================
 
 async def executar_radar(context: ContextTypes.DEFAULT_TYPE):
@@ -712,22 +795,13 @@ async def executar_radar(context: ContextTypes.DEFAULT_TYPE):
 
         for promo in promotions:
             if adicionar_promocao_se_nova(promo):
-                if promo["score"] >= 7.0:
-                    await enviar_alerta_canal(context, promo)
-                    enviados_neste_ciclo += 1
+                await enviar_alerta_canal(context, promo)
+                enviados_neste_ciclo += 1
 
         STATE["ultimos_alertas_enviados"] = enviados_neste_ciclo
         STATE["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         STATE["ultimo_erro"] = "nenhum"
         persist_state()
-
-        logger.info(
-            "Radar executado | novas=%s | fontes=%s | ativas=%s | erro=%s",
-            enviados_neste_ciclo,
-            STATE["fontes_monitoradas"],
-            STATE["fontes_ativas"],
-            STATE["fontes_com_erro"],
-        )
 
     except Exception as e:
         STATE["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -739,21 +813,40 @@ async def executar_radar(context: ContextTypes.DEFAULT_TYPE):
 # CONSULTAS
 # =========================================================
 
+def dedupe_by_title_signature(promos: list[dict], limit=5) -> list[dict]:
+    result = []
+    seen = set()
+
+    for p in promos:
+        sig = title_signature(p["title"] + " " + p["type"])
+        if sig in seen:
+            continue
+        seen.add(sig)
+        result.append(p)
+        if len(result) >= limit:
+            break
+
+    return result
+
+
 def latest_promotions(limit=5):
-    return STATE["promocoes"][:limit]
+    promos = [p for p in STATE["promocoes"] if p["type"] in ("promocoes", "milheiro", "passagens")]
+    return dedupe_by_title_signature(promos, limit)
 
 
 def latest_transferencias(limit=5):
-    return [p for p in STATE["promocoes"] if p["type"] == "transferencias"][:limit]
+    promos = [p for p in STATE["promocoes"] if p["type"] == "transferencias"]
+    return dedupe_by_title_signature(promos, limit)
 
 
 def latest_passagens(limit=5):
-    return [p for p in STATE["promocoes"] if p["type"] == "passagens"][:limit]
+    promos = [p for p in STATE["promocoes"] if p["type"] == "passagens"]
+    return dedupe_by_title_signature(promos, limit)
 
 
 def ranking_promotions(limit=5):
     promos = sorted(STATE["promocoes"], key=lambda p: p["score"], reverse=True)
-    return promos[:limit]
+    return dedupe_by_title_signature(promos, limit)
 
 # =========================================================
 # COMANDOS
@@ -788,7 +881,6 @@ async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = latest_promotions(5)
-
     if not promos:
         await update.message.reply_text("🔥 Últimas promoções\n\nNenhuma promoção registrada ainda.")
         return
@@ -796,13 +888,11 @@ async def cmd_promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     linhas = ["🔥 Últimas promoções", ""]
     for p in promos:
         linhas.append(f"• {p['title']} | score {p['score']}")
-
     await update.message.reply_text("\n".join(linhas))
 
 
 async def cmd_transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = latest_transferencias(5)
-
     if not promos:
         await update.message.reply_text("🔁 Últimas transferências\n\nNenhuma promoção registrada ainda.")
         return
@@ -810,13 +900,11 @@ async def cmd_transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE)
     linhas = ["🔁 Últimas transferências", ""]
     for p in promos:
         linhas.append(f"• {p['title']} | score {p['score']}")
-
     await update.message.reply_text("\n".join(linhas))
 
 
 async def cmd_passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = latest_passagens(5)
-
     if not promos:
         await update.message.reply_text("✈️ Últimos alertas de passagens\n\nNenhuma promoção registrada ainda.")
         return
@@ -824,13 +912,11 @@ async def cmd_passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
     linhas = ["✈️ Últimos alertas de passagens", ""]
     for p in promos:
         linhas.append(f"• {p['title']} | score {p['score']}")
-
     await update.message.reply_text("\n".join(linhas))
 
 
 async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = ranking_promotions(5)
-
     if not promos:
         await update.message.reply_text("🏆 Ranking promoções\n\nNenhuma promoção registrada ainda.")
         return
@@ -838,7 +924,6 @@ async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     linhas = ["🏆 Ranking promoções", ""]
     for idx, p in enumerate(promos, start=1):
         linhas.append(f"{idx}. {promo_resumo_ranking(p)}")
-
     await update.message.reply_text("\n".join(linhas))
 
 
@@ -875,7 +960,6 @@ async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text("🧪 Teste manual do radar iniciado...")
-
     await executar_radar(context)
 
     texto = (
@@ -899,9 +983,7 @@ async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not falhas:
         texto_falhas = "Nenhuma falha registrada agora."
     else:
-        linhas = []
-        for nome, erro in falhas.items():
-            linhas.append(f"• {nome}: {erro}")
+        linhas = [f"• {nome}: {erro}" for nome, erro in falhas.items()]
         texto_falhas = "\n".join(linhas)
 
     texto = (
@@ -922,7 +1004,6 @@ async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def build_app():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("menu", cmd_menu))
     app.add_handler(CommandHandler("promocoes", cmd_promocoes))
@@ -932,7 +1013,6 @@ def build_app():
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("testeradar", cmd_testeradar))
     app.add_handler(CommandHandler("debug", cmd_debug))
-
     return app
 
 
@@ -944,12 +1024,9 @@ def main():
     app = build_app()
 
     if app.job_queue is None:
-        raise RuntimeError(
-            "JobQueue indisponível. Confirme a dependência python-telegram-bot[job-queue]."
-        )
+        raise RuntimeError("JobQueue indisponível. Confirme python-telegram-bot[job-queue].")
 
     app.job_queue.run_repeating(executar_radar, interval=RADAR_INTERVAL_SECONDS, first=10)
-
     logger.info("Radar iniciado.")
     app.run_polling(drop_pending_updates=False)
 
