@@ -12,20 +12,18 @@ CANAL_ID = os.getenv("CANAL_ID", "")
 # OPERAÇÃO
 # =========================
 
-# 10 minutos, fiel ao manual v3
 INTERVALO_RADAR = int(os.getenv("INTERVALO_RADAR", "600"))
-
-# intervalo de polling dos comandos
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "3"))
-
-# número máximo de itens mostrados por comando
 LIMITE_COMANDO = int(os.getenv("LIMITE_COMANDO", "5"))
 
-# score mínimo para alerta automático (opção B escolhida)
+# score mínimo para alerta automático
 SCORE_MINIMO_ALERTA = float(os.getenv("SCORE_MINIMO_ALERTA", "7.0"))
 
-# quantidade máxima de oportunidades por alerta consolidado
+# máximo por alerta consolidado
 MAX_ALERTAS_CONSOLIDADOS = int(os.getenv("MAX_ALERTAS_CONSOLIDADOS", "5"))
+
+# janela de bloqueio da mesma promoção em horas
+JANELA_REPETICAO_HORAS = int(os.getenv("JANELA_REPETICAO_HORAS", "24"))
 
 # =========================
 # FONTES - BLOGS
@@ -38,7 +36,6 @@ BLOG_FEEDS = [
     "https://estevaopelomundo.com.br/feed",
 ]
 
-# blogs confiáveis
 TRUSTED_BLOG_SOURCES = set(BLOG_FEEDS)
 
 # =========================
