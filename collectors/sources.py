@@ -84,7 +84,7 @@ FONTES = [
         "type": "html",
         "url": "https://www.tudoazul.com/",
         "group": "programas",
-        "optional": True,
+        "optional": True
     },
     {
         "name": "Livelo Oficial",
