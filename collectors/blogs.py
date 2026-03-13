@@ -3,7 +3,7 @@ import feedparser
 from config import BLOG_FEEDS
 
 
-def coletar_blogs():
+def coletar_blogs() -> list[dict]:
     resultados = []
 
     for feed_url in BLOG_FEEDS:
