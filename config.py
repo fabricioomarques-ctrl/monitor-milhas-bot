@@ -12,18 +12,27 @@ CANAL_ID = os.getenv("CANAL_ID", "")
 # OPERAÇÃO
 # =========================
 
-INTERVALO_RADAR = int(os.getenv("INTERVALO_RADAR", "600"))
+# 20 minutos para não massificar
+INTERVALO_RADAR = int(os.getenv("INTERVALO_RADAR", "1200"))
+
+# polling dos comandos do Telegram
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "3"))
+
+# quantos itens mostrar por comando
 LIMITE_COMANDO = int(os.getenv("LIMITE_COMANDO", "5"))
 
-# score mínimo para alerta automático
+# alerta automático apenas para score forte
 SCORE_MINIMO_ALERTA = float(os.getenv("SCORE_MINIMO_ALERTA", "7.0"))
 
-# máximo por alerta consolidado
+# máximo de itens por alerta consolidado
 MAX_ALERTAS_CONSOLIDADOS = int(os.getenv("MAX_ALERTAS_CONSOLIDADOS", "5"))
 
-# janela de bloqueio da mesma promoção em horas
+# não repetir a mesma oportunidade por 24h
 JANELA_REPETICAO_HORAS = int(os.getenv("JANELA_REPETICAO_HORAS", "24"))
+
+# dashboard web
+DASHBOARD_HOST = os.getenv("DASHBOARD_HOST", "0.0.0.0")
+DASHBOARD_PORT = int(os.getenv("PORT", "8000"))
 
 # =========================
 # FONTES - BLOGS
@@ -34,6 +43,10 @@ BLOG_FEEDS = [
     "https://passageirodeprimeira.com/feed",
     "https://pontospravoar.com/feed",
     "https://estevaopelomundo.com.br/feed",
+    "https://www.melhorescartoes.com.br/feed",
+    "https://www.falandodeviagem.com.br/feed",
+    "https://viajenaviagem.com/feed",
+    "https://aeroworld.com.br/feed",
 ]
 
 TRUSTED_BLOG_SOURCES = set(BLOG_FEEDS)
@@ -46,6 +59,7 @@ PROGRAMAS_URLS = {
     "smiles": "https://www.smiles.com.br/promocoes",
     "latam_pass": "https://www.latampass.com/promocoes",
     "tudoazul": "https://www.tudoazul.com/promocoes",
+    "tap_milesgo": "https://www.flytap.com/pt-br/miles-and-go/promocoes",
 }
 
 # =========================
@@ -55,6 +69,8 @@ PROGRAMAS_URLS = {
 BANCOS_URLS = {
     "livelo": "https://www.livelo.com.br/promocoes",
     "esfera": "https://www.esfera.com.vc/promocoes",
+    "iupp": "https://www.iupp.com.br",
+    "atomos": "https://www.programaatomos.com.br",
 }
 
 # =========================
@@ -75,18 +91,18 @@ SOCIAL_URLS = {
     "smiles": "https://nitter.net/smilesoficial",
     "latam": "https://nitter.net/latampassbr",
     "azul": "https://nitter.net/azulinhasaereas",
+    "esfera": "https://nitter.net/esfera_",
 }
 
 # =========================
 # DETECÇÃO
 # =========================
 
-# Agora não limitamos mais detecção de transferência a 80%+.
-# Qualquer bônus percentual entra; o score define a qualidade.
+# detectar qualquer bônus percentual; score decide qualidade
 BONUS_MINIMO = int(os.getenv("BONUS_MINIMO", "1"))
 
-MILHEIRO_MAXIMO = float(os.getenv("MILHEIRO_MAXIMO", "18"))
-PASSAGEM_MILHAS_MAX = int(os.getenv("PASSAGEM_MILHAS_MAX", "5000"))
+MILHEIRO_MAXIMO = float(os.getenv("MILHEIRO_MAXIMO", "30"))
+PASSAGEM_MILHAS_MAX = int(os.getenv("PASSAGEM_MILHAS_MAX", "25000"))
 
 # =========================
 # RUÍDO
