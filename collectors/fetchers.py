@@ -5,7 +5,7 @@ import requests
 import urllib3
 
 from config import REQUEST_TIMEOUT
-from utils.text_utils import normalize_text, strip_html_tags
+from utils.text_utils import normalize_text, split_sentences, strip_html_tags
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -78,48 +78,58 @@ def collect_rss(source: dict) -> list[dict]:
     return items
 
 
+def _extract_candidate_sentences(text_norm: str) -> list[str]:
+    raw_sentences = split_sentences(text_norm)
+    candidates = []
+
+    patterns = [
+        r"milheiro",
+        r"b[oô]nus",
+        r"transfer[êe]ncia",
+        r"transfira pontos",
+        r"alerta de passagens",
+        r"passagens",
+        r"resgate",
+        r"trechos",
+        r"latam pass",
+        r"smiles",
+        r"esfera",
+        r"azul fidelidade",
+        r"livelo",
+        r"clube",
+        r"maxmilhas",
+        r"pontos",
+        r"milhas",
+    ]
+
+    for sentence in raw_sentences:
+        s = normalize_text(sentence)
+        if any(re.search(p, s, flags=re.I) for p in patterns):
+            candidates.append(sentence[:220].strip())
+
+    unique = []
+    seen = set()
+    for c in candidates:
+        key = normalize_text(c)
+        if len(key) < 20:
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(c)
+    return unique[:12]
+
+
 def collect_html(source: dict) -> list[dict]:
     text = fetch_with_fallbacks(source)
     clean_text = strip_html_tags(text)
     text_norm = normalize_text(clean_text)
 
-    patterns = [
-        r"[^.!?\n]{0,80}(milheiro[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(b[oô]nus na transfer[êe]ncia[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(transfer[êe]ncia de pontos[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(transfira pontos[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(alerta de passagens[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(resgate[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(trechos[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(clube smiles[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(clube livelo[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(clube esfera[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(latam pass[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(smiles[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(esfera[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(azul fidelidade[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(livelo[^.!?\n]{0,220})",
-        r"[^.!?\n]{0,80}(maxmilhas[^.!?\n]{0,220})",
-    ]
-
-    found_snippets = []
-    for pattern in patterns:
-        found_snippets.extend(re.findall(pattern, text_norm, flags=re.I))
-
-    unique_snippets = []
-    seen = set()
-    for snippet in found_snippets:
-        snippet = snippet.strip()
-        if len(snippet) < 18:
-            continue
-        if snippet in seen:
-            continue
-        seen.add(snippet)
-        unique_snippets.append(snippet)
+    snippets = _extract_candidate_sentences(text_norm)
 
     items = []
-    for snippet in unique_snippets[:12]:
-        title = snippet[:180].strip().capitalize()
+    for snippet in snippets:
+        title = snippet[:180].strip()
         items.append(
             {
                 "source_name": source["name"],
