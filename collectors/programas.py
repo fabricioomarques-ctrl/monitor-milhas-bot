@@ -1,32 +1,34 @@
 import requests
+from bs4 import BeautifulSoup
 
+from config import PROGRAMAS_URLS
 
-PROGRAMAS = [
-    "https://www.smiles.com.br/promocoes",
-    "https://www.latampass.com/promocoes",
-    "https://www.tudoazul.com/promocoes"
-]
+HEADERS = {
+    "User-Agent": "Mozilla/5.0"
+}
 
 
 def coletar_programas():
-
     resultados = []
 
-    for url in PROGRAMAS:
-
+    for nome, url in PROGRAMAS_URLS.items():
         try:
+            r = requests.get(url, headers=HEADERS, timeout=20)
 
-            r = requests.get(url, timeout=20)
+            if r.status_code != 200:
+                continue
 
-            if "bônus" in r.text.lower() or "bonus" in r.text.lower():
+            soup = BeautifulSoup(r.text, "html.parser")
+            texto = soup.get_text(" ", strip=True)
 
-                resultados.append({
-                    "tipo": "transferencia_bonificada",
-                    "titulo": "Possível bônus detectado",
-                    "link": url,
-                    "fonte": url,
-                    "detalhe": "Página contém menção a bônus"
-                })
+            resultados.append({
+                "origem": "programa",
+                "fonte": nome,
+                "titulo": f"Promoções {nome}",
+                "link": url,
+                "texto": texto,
+                "publicado": "",
+            })
 
         except Exception:
             continue
