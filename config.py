@@ -81,7 +81,10 @@ SOCIAL_URLS = {
 # DETECÇÃO
 # =========================
 
-BONUS_MINIMO = int(os.getenv("BONUS_MINIMO", "80"))
+# Agora não limitamos mais detecção de transferência a 80%+.
+# Qualquer bônus percentual entra; o score define a qualidade.
+BONUS_MINIMO = int(os.getenv("BONUS_MINIMO", "1"))
+
 MILHEIRO_MAXIMO = float(os.getenv("MILHEIRO_MAXIMO", "18"))
 PASSAGEM_MILHAS_MAX = int(os.getenv("PASSAGEM_MILHAS_MAX", "5000"))
 
@@ -123,6 +126,11 @@ KEYWORDS_TRANSFERENCIA = [
     "transferir pontos",
     "transfira seus pontos",
     "envie seus pontos",
+    "bonus livelo",
+    "bonus esfera",
+    "bonus smiles",
+    "bonus latam pass",
+    "bonus tudoazul",
 ]
 
 KEYWORDS_PASSAGEM = [
