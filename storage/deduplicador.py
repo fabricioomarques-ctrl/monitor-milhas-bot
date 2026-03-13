@@ -5,15 +5,11 @@ import time
 from config import JANELA_REPETICAO_HORAS
 
 ARQUIVO_ALERTAS = "promocoes_enviadas.json"
-MAX_ITENS = 5000
+MAX_ITENS = 10000
 JANELA_REPETICAO_SEGUNDOS = JANELA_REPETICAO_HORAS * 3600
 
 
 def _normalizar_base(data):
-    """
-    Aceita formato antigo (lista) e novo (dict).
-    Sempre retorna dict[str, float].
-    """
     if isinstance(data, dict):
         saida = {}
         for chave, valor in data.items():
@@ -38,9 +34,7 @@ def carregar_alertas_enviados() -> dict:
         with open(ARQUIVO_ALERTAS, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        base = _normalizar_base(data)
-        return limpar_expirados(base)
-
+        return limpar_expirados(_normalizar_base(data))
     except Exception:
         return {}
 
@@ -48,7 +42,6 @@ def carregar_alertas_enviados() -> dict:
 def salvar_alertas_enviados(alertas: dict) -> None:
     base = limpar_expirados(dict(alertas))
 
-    # limita o tamanho
     if len(base) > MAX_ITENS:
         itens_ordenados = sorted(base.items(), key=lambda x: x[1], reverse=True)
         base = dict(itens_ordenados[:MAX_ITENS])
@@ -69,11 +62,7 @@ def limpar_expirados(alertas: dict) -> dict:
 
 def foi_enviado_recentemente(chave: str, alertas: dict) -> bool:
     alertas_limpos = limpar_expirados(alertas)
-
-    if chave not in alertas_limpos:
-        return False
-
-    return True
+    return chave in alertas_limpos
 
 
 def registrar_envio(chave: str, alertas: dict) -> dict:
