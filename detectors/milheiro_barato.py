@@ -1,19 +1,31 @@
-def detectar_milheiro_barato(resultados):
+from config import CONTEXTO_MILHEIRO, MILHEIRO_MAXIMO
+from utils.texto import normalizar_texto, extrair_precos_reais
 
-    novos = []
 
-    for r in resultados:
+def detectar_milheiro_barato(item):
+    texto_original = item.get("texto", "")
+    texto = normalizar_texto(texto_original)
 
-        texto = (r["titulo"] + r["detalhe"]).lower()
+    if not any(normalizar_texto(c) in texto for c in CONTEXTO_MILHEIRO):
+        return None
 
-        if "milheiro" in texto and "r$" in texto:
+    precos = extrair_precos_reais(texto_original)
 
-            novos.append({
-                "tipo": "milheiro_barato",
-                "titulo": r["titulo"],
-                "link": r["link"],
-                "fonte": r["fonte"],
-                "detalhe": "Possível milheiro barato"
-            })
+    if not precos:
+        return None
 
-    return novos
+    menor_preco = min(precos)
+
+    if menor_preco > MILHEIRO_MAXIMO:
+        return None
+
+    return {
+        "tipo": "milheiro_barato",
+        "origem": item.get("origem", ""),
+        "fonte": item.get("fonte", ""),
+        "titulo": item.get("titulo", ""),
+        "link": item.get("link", ""),
+        "detalhe": f"Milheiro detectado por R$ {menor_preco:.2f}",
+        "preco": menor_preco,
+        "score_base": 100 - int(menor_preco * 4),
+    }
