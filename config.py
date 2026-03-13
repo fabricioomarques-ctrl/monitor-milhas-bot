@@ -6,19 +6,26 @@ import os
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
 CHAT_ID = os.getenv("CHAT_ID", "")
+CANAL_ID = os.getenv("CANAL_ID", "")
 
 # =========================
 # RADAR
 # =========================
 
-# 3600 segundos = 1 hora
-INTERVALO = int(os.getenv("INTERVALO", "3600"))
+# 10 minutos, fiel ao projeto original
+INTERVALO = int(os.getenv("INTERVALO", "600"))
 
-# polling de comandos
+# polling dos comandos do Telegram
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "3"))
 
-# quantos resultados mostrar nos comandos
+# quantos itens mostrar por comando
 LIMITE_COMANDO = int(os.getenv("LIMITE_COMANDO", "5"))
+
+# score mínimo para enviar alerta automático
+SCORE_MINIMO_ALERTA = float(os.getenv("SCORE_MINIMO_ALERTA", "7.5"))
+
+# quantos itens no alerta consolidado
+MAX_ALERTAS_CONSOLIDADOS = int(os.getenv("MAX_ALERTAS_CONSOLIDADOS", "5"))
 
 # =========================
 # REGRAS DE DETECÇÃO
@@ -29,17 +36,18 @@ MILHEIRO_MAXIMO = float(os.getenv("MILHEIRO_MAXIMO", "18"))
 PASSAGEM_MILHAS_MAX = int(os.getenv("PASSAGEM_MILHAS_MAX", "5000"))
 
 # =========================
-# RSS DE BLOGS
+# FONTES - BLOGS
 # =========================
 
 BLOG_FEEDS = [
     "https://pontospravoar.com/feed",
     "https://passageirodeprimeira.com/feed",
     "https://www.melhoresdestinos.com.br/feed",
+    "https://estevaopelomundo.com.br/feed",
 ]
 
 # =========================
-# PROGRAMAS DE MILHAS
+# FONTES - PROGRAMAS
 # =========================
 
 PROGRAMAS_URLS = {
@@ -49,7 +57,7 @@ PROGRAMAS_URLS = {
 }
 
 # =========================
-# BANCOS / PROGRAMAS DE PONTOS
+# FONTES - BANCOS / PONTOS
 # =========================
 
 BANCOS_URLS = {
@@ -58,30 +66,53 @@ BANCOS_URLS = {
 }
 
 # =========================
-# PALAVRAS DE RUÍDO
+# FONTES - MERCADO DE MILHAS
+# =========================
+
+MILHEIRO_URLS = {
+    "maxmilhas": "https://www.maxmilhas.com.br",
+    "hotmilhas": "https://www.hotmilhas.com.br",
+}
+
+# =========================
+# FONTES - REDES / NITTER
+# =========================
+
+SOCIAL_URLS = {
+    "livelo": "https://nitter.net/livelooficial",
+    "smiles": "https://nitter.net/smilesoficial",
+    "latam": "https://nitter.net/latampassbr",
+    "azul": "https://nitter.net/azulinhasaereas",
+}
+
+# =========================
+# RUÍDO
 # =========================
 
 NOISE_WORDS = [
     "seguro",
     "assist card",
-    "grupo de promoções",
     "grupo de promocoes",
+    "grupo de promoções",
     "grupo whatsapp",
     "cashback",
     "cupom",
-    "cartão",
     "cartao",
-    "oferta de hotel",
-    "hotel",
-    "resumo das promoções",
+    "cartão",
+    "shopping",
+    "varejo",
+    "pontos por real",
     "resumo das promocoes",
+    "resumo das promoções",
     "resumo do dia",
     "grupo de descontos",
-    "black friday genérica",
+    "hotel",
+    "diarias",
+    "diárias",
 ]
 
 # =========================
-# CONTEXTO DE MILHEIRO
+# CONTEXTOS
 # =========================
 
 CONTEXTO_MILHEIRO = [
@@ -89,32 +120,24 @@ CONTEXTO_MILHEIRO = [
     "milheiros",
     "milha",
     "milhas",
-    "1.000 milhas",
     "1000 milhas",
+    "1.000 milhas",
     "compra de milhas",
     "venda de milhas",
-    "preço do milheiro",
     "preco do milheiro",
+    "preço do milheiro",
     "lote de milhas",
 ]
 
-# =========================
-# CONTEXTO DE TRANSFERÊNCIA
-# =========================
-
 KEYWORDS_TRANSFERENCIA = [
-    "transferência bonificada",
     "transferencia bonificada",
-    "bônus de transferência",
+    "transferência bonificada",
     "bonus de transferencia",
+    "bônus de transferência",
     "transferir pontos",
     "transfira seus pontos",
     "envie seus pontos",
 ]
-
-# =========================
-# CONTEXTO DE PASSAGENS
-# =========================
 
 KEYWORDS_PASSAGEM = [
     "passagem",
@@ -122,8 +145,9 @@ KEYWORDS_PASSAGEM = [
     "trechos",
     "voos",
     "voo",
-    "a partir de",
     "milhas latam pass",
     "milhas smiles",
     "milhas azul",
+    "milhas tap",
+    "a partir de",
 ]
