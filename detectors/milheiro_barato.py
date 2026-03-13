@@ -27,5 +27,4 @@ def detectar_milheiro_barato(item):
         "link": item.get("link", ""),
         "detalhe": f"Milheiro detectado por R$ {menor_preco:.2f}",
         "preco": menor_preco,
-        "score_base": 100 - int(menor_preco * 4),
     }
