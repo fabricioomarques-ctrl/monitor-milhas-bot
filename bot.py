@@ -18,6 +18,8 @@ from engine.scoring import chave_duplicacao
 from storage.deduplicador import (
     carregar_alertas_enviados,
     salvar_alertas_enviados,
+    foi_enviado_recentemente,
+    registrar_envio,
 )
 
 
@@ -26,7 +28,6 @@ LAST_RESULTS_COUNT = 0
 LAST_SENT_COUNT = 0
 LAST_ERROR = ""
 LAST_UPDATE_ID = None
-LAST_SOURCE_SUMMARY = {}
 
 
 def telegram_api_url(method: str) -> str:
@@ -51,7 +52,6 @@ def enviar_telegram(mensagem: str, chat_id: str | None = None) -> bool:
         return False
 
     destinos = [chat_id] if chat_id else destinos_alerta()
-
     sucesso = False
 
     for destino in destinos:
@@ -227,7 +227,7 @@ def processar_comando(texto: str, chat_id: str) -> None:
     if comando == "/promocoes":
         try:
             resultados = executar_radar()
-            bonus = filtrar_por_tipo(resultados, ["transferencia_bonificada"])
+            bonus = filtrar_por_tipo(resultados, ["transferencia_bonificada", "milheiro_barato"])
             enviar_telegram(
                 formatar_lista_resultados("🔥 Promoções detectadas", bonus),
                 chat_id=chat_id
@@ -294,7 +294,7 @@ def processar_updates() -> None:
             processar_comando(text, chat_id)
 
 
-def executar_ciclo_radar(alertas_enviados: set) -> None:
+def executar_ciclo_radar(alertas_enviados: dict) -> None:
     global LAST_RADAR_RUN, LAST_RESULTS_COUNT, LAST_SENT_COUNT, LAST_ERROR
 
     enviados_nesta_execucao = 0
@@ -311,11 +311,11 @@ def executar_ciclo_radar(alertas_enviados: set) -> None:
 
             chave = chave_duplicacao(resultado)
 
-            if chave in alertas_enviados:
+            if foi_enviado_recentemente(chave, alertas_enviados):
                 continue
 
             fortes.append(resultado)
-            alertas_enviados.add(chave)
+            registrar_envio(chave, alertas_enviados)
 
         if fortes:
             mensagem = montar_alerta_consolidado(fortes)
