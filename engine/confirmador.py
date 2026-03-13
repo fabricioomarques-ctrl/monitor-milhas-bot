@@ -5,12 +5,6 @@ from engine.scoring import chave_confirmacao
 
 
 def confirmar_multi_fonte(oportunidades: list[dict]) -> list[dict]:
-    """
-    Regra fiel ao projeto:
-    - fonte oficial (programa/banco) confirma
-    - blog confiável confirma
-    - ou duas origens distintas confirmam
-    """
     agrupados = defaultdict(list)
 
     for item in oportunidades:
