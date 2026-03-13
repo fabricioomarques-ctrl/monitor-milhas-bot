@@ -1,5 +1,7 @@
 from collections import defaultdict
 
+from config import TRUSTED_BLOG_SOURCES
+
 from collectors.blogs import coletar_blogs
 from collectors.programas import coletar_programas
 from collectors.bancos import coletar_bancos
@@ -49,6 +51,12 @@ def detectar_oportunidades(dados_brutos):
 
 
 def confirmar_multi_fonte(oportunidades):
+    """
+    Regra fiel ao espírito do projeto:
+    - fonte oficial (programa/banco) confirma
+    - blog confiável também pode confirmar sozinho
+    - ou 2 origens distintas confirmam
+    """
     agrupados = defaultdict(list)
 
     for item in oportunidades:
@@ -59,19 +67,28 @@ def confirmar_multi_fonte(oportunidades):
 
     for _, itens in agrupados.items():
         origens = {i.get("origem", "") for i in itens}
-        oficiais = {"programa", "banco"}
+        fontes = {i.get("fonte", "") for i in itens}
 
-        # regra profissional:
-        # 1) qualquer fonte oficial já confirma
-        # 2) ou 2 origens distintas confirmam
-        confirmado = bool(origens & oficiais) or len(origens) >= 2
+        confirmado = False
+
+        # 1) fonte oficial confirma
+        if "programa" in origens or "banco" in origens:
+            confirmado = True
+
+        # 2) blog confiável também confirma
+        if not confirmado and any(f in TRUSTED_BLOG_SOURCES for f in fontes):
+            confirmado = True
+
+        # 3) duas origens distintas também confirmam
+        if not confirmado and len(origens) >= 2:
+            confirmado = True
 
         if not confirmado:
             continue
 
         melhor = itens[0]
-        melhor["confirmado_fontes"] = len(origens)
-        melhor["fontes_detectadas"] = sorted(list(origens))
+        melhor["confirmado_fontes"] = len(fontes)
+        melhor["fontes_detectadas"] = sorted(list(fontes))
         confirmados.append(melhor)
 
     return confirmados
