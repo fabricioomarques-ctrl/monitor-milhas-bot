@@ -1,32 +1,81 @@
 import json
 import os
+import time
+
+from config import JANELA_REPETICAO_HORAS
 
 ARQUIVO_ALERTAS = "promocoes_enviadas.json"
 MAX_ITENS = 5000
+JANELA_REPETICAO_SEGUNDOS = JANELA_REPETICAO_HORAS * 3600
 
 
-def carregar_alertas_enviados() -> set:
+def _normalizar_base(data):
+    """
+    Aceita formato antigo (lista) e novo (dict).
+    Sempre retorna dict[str, float].
+    """
+    if isinstance(data, dict):
+        saida = {}
+        for chave, valor in data.items():
+            try:
+                saida[str(chave)] = float(valor)
+            except Exception:
+                continue
+        return saida
+
+    if isinstance(data, list):
+        agora = time.time()
+        return {str(item): agora for item in data}
+
+    return {}
+
+
+def carregar_alertas_enviados() -> dict:
     if not os.path.exists(ARQUIVO_ALERTAS):
-        return set()
+        return {}
 
     try:
         with open(ARQUIVO_ALERTAS, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        if isinstance(data, list):
-            return set(data)
-
-        return set()
+        base = _normalizar_base(data)
+        return limpar_expirados(base)
 
     except Exception:
-        return set()
+        return {}
 
 
-def salvar_alertas_enviados(alertas: set) -> None:
-    lista = list(alertas)
+def salvar_alertas_enviados(alertas: dict) -> None:
+    base = limpar_expirados(dict(alertas))
 
-    if len(lista) > MAX_ITENS:
-        lista = lista[-MAX_ITENS:]
+    # limita o tamanho
+    if len(base) > MAX_ITENS:
+        itens_ordenados = sorted(base.items(), key=lambda x: x[1], reverse=True)
+        base = dict(itens_ordenados[:MAX_ITENS])
 
     with open(ARQUIVO_ALERTAS, "w", encoding="utf-8") as f:
-        json.dump(lista, f, ensure_ascii=False, indent=2)
+        json.dump(base, f, ensure_ascii=False, indent=2)
+
+
+def limpar_expirados(alertas: dict) -> dict:
+    agora = time.time()
+
+    return {
+        chave: timestamp
+        for chave, timestamp in alertas.items()
+        if (agora - float(timestamp)) < JANELA_REPETICAO_SEGUNDOS
+    }
+
+
+def foi_enviado_recentemente(chave: str, alertas: dict) -> bool:
+    alertas_limpos = limpar_expirados(alertas)
+
+    if chave not in alertas_limpos:
+        return False
+
+    return True
+
+
+def registrar_envio(chave: str, alertas: dict) -> dict:
+    alertas[chave] = time.time()
+    return alertas
