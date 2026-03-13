@@ -3,7 +3,16 @@ from datetime import datetime
 
 import requests
 
-from config import TELEGRAM_TOKEN, CHAT_ID, INTERVALO, POLL_INTERVAL, LIMITE_COMANDO
+from config import (
+    TELEGRAM_TOKEN,
+    CHAT_ID,
+    CANAL_ID,
+    INTERVALO,
+    POLL_INTERVAL,
+    LIMITE_COMANDO,
+    SCORE_MINIMO_ALERTA,
+    MAX_ALERTAS_CONSOLIDADOS,
+)
 from engine.radar import executar_radar
 from storage.estado import (
     carregar_promocoes_enviadas,
@@ -22,33 +31,50 @@ def telegram_api_url(method):
     return f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/{method}"
 
 
-def enviar_telegram(mensagem, chat_id=None):
-    destino = chat_id or CHAT_ID
+def destinos_alerta():
+    destinos = []
 
-    if not TELEGRAM_TOKEN or not destino:
+    if CHAT_ID:
+        destinos.append(CHAT_ID)
+
+    if CANAL_ID and CANAL_ID not in destinos:
+        destinos.append(CANAL_ID)
+
+    return destinos
+
+
+def enviar_telegram(mensagem, chat_id=None):
+    if not TELEGRAM_TOKEN:
         print("Telegram não configurado")
         return False
 
-    try:
-        r = requests.post(
-            telegram_api_url("sendMessage"),
-            json={
-                "chat_id": destino,
-                "text": mensagem
-            },
-            timeout=20
-        )
+    destinos = [chat_id] if chat_id else destinos_alerta()
 
-        if r.status_code == 200:
-            print("Mensagem enviada ao Telegram com sucesso")
-            return True
+    sucesso = False
 
-        print("Erro Telegram status:", r.status_code, r.text)
-        return False
+    for destino in destinos:
+        if not destino:
+            continue
 
-    except Exception as e:
-        print("Erro Telegram:", e)
-        return False
+        try:
+            r = requests.post(
+                telegram_api_url("sendMessage"),
+                json={
+                    "chat_id": destino,
+                    "text": mensagem
+                },
+                timeout=20
+            )
+
+            if r.status_code == 200:
+                sucesso = True
+            else:
+                print("Erro Telegram status:", r.status_code, r.text)
+
+        except Exception as e:
+            print("Erro Telegram:", e)
+
+    return sucesso
 
 
 def obter_updates(offset=None):
@@ -97,7 +123,8 @@ def montar_alerta(resultado):
     link = resultado.get("link", "")
     fonte = resultado.get("fonte", "")
     score = resultado.get("score", 0)
-    classificacao = resultado.get("classificacao", "⚪ OPORTUNIDADE PADRÃO")
+    classificacao = resultado.get("classificacao", "🟢 PROMOÇÃO BOA")
+    confirmacao = resultado.get("confirmado_fontes", 1)
 
     prefixos = {
         "transferencia_bonificada": "🔁 TRANSFERÊNCIA BONIFICADA",
@@ -110,12 +137,32 @@ def montar_alerta(resultado):
     return (
         f"{prefixo}\n\n"
         f"📌 {titulo}\n"
-        f"📍 Fonte: {fonte}\n"
+        f"📍 Fonte principal: {fonte}\n"
         f"📝 {detalhe}\n"
-        f"📊 Score: {score}\n"
+        f"📊 Score: {score}/10\n"
+        f"✅ Confirmada em {confirmacao} fonte(s)\n"
         f"{classificacao}\n\n"
         f"{link}"
     )
+
+
+def montar_alerta_consolidado(resultados):
+    if not resultados:
+        return ""
+
+    msg = "🚨 RADAR DE MILHAS PRO\n\n"
+    msg += f"{len(resultados)} oportunidade(s) relevante(s) detectada(s)\n\n"
+
+    for i, r in enumerate(resultados[:MAX_ALERTAS_CONSOLIDADOS], 1):
+        msg += (
+            f"{i}️⃣ {r.get('titulo', '')}\n"
+            f"📝 {r.get('detalhe', '')}\n"
+            f"📊 Score: {r.get('score', 0)}/10\n"
+            f"{r.get('classificacao', '')}\n"
+            f"{r.get('link', '')}\n\n"
+        )
+
+    return msg.strip()
 
 
 def texto_menu():
@@ -160,8 +207,9 @@ def formatar_lista_resultados(titulo, resultados, limite=LIMITE_COMANDO):
             f"{i}️⃣ {resultado.get('titulo', '')}\n"
             f"📍 Fonte: {resultado.get('fonte', '')}\n"
             f"📝 {resultado.get('detalhe', '')}\n"
-            f"📊 Score: {resultado.get('score', 0)}\n"
-            f"{resultado.get('classificacao', '⚪ OPORTUNIDADE PADRÃO')}\n"
+            f"📊 Score: {resultado.get('score', 0)}/10\n"
+            f"✅ Confirmada em {resultado.get('confirmado_fontes', 1)} fonte(s)\n"
+            f"{resultado.get('classificacao', '🟢 PROMOÇÃO BOA')}\n"
             f"{resultado.get('link', '')}\n\n"
         )
 
@@ -298,18 +346,24 @@ def executar_ciclo_radar(enviados):
         resultados = executar_radar()
         LAST_RESULTS_COUNT = len(resultados)
 
+        # envia só score forte e ainda não enviados
+        fortes = []
         for resultado in resultados:
+            if resultado.get("score", 0) < SCORE_MINIMO_ALERTA:
+                continue
+
             chave = chave_resultado(resultado)
 
             if chave in enviados:
-                print("Resultado já enviado, pulando:", chave)
                 continue
 
-            mensagem = montar_alerta(resultado)
+            fortes.append(resultado)
+            enviados.add(chave)
 
-            if enviar_telegram(mensagem):
-                enviados.add(chave)
-                enviados_nesta_execucao += 1
+        if fortes:
+            mensagem = montar_alerta_consolidado(fortes)
+            if mensagem and enviar_telegram(mensagem):
+                enviados_nesta_execucao = len(fortes)
 
         salvar_promocoes_enviadas(enviados)
 
