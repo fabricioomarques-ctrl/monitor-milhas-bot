@@ -1,3 +1,4 @@
+import threading
 import time
 from datetime import datetime
 
@@ -12,6 +13,15 @@ from config import (
     LIMITE_COMANDO,
     SCORE_MINIMO_ALERTA,
     MAX_ALERTAS_CONSOLIDADOS,
+    DASHBOARD_HOST,
+    DASHBOARD_PORT,
+)
+from dashboard.app import app as dashboard_app
+from engine.metrics import (
+    carregar_metrics,
+    registrar_enviados,
+    registrar_erro,
+    salvar_metrics,
 )
 from engine.radar import executar_radar
 from engine.scoring import chave_duplicacao
@@ -28,6 +38,10 @@ LAST_RESULTS_COUNT = 0
 LAST_SENT_COUNT = 0
 LAST_ERROR = ""
 LAST_UPDATE_ID = None
+
+
+def iniciar_dashboard():
+    dashboard_app.run(host=DASHBOARD_HOST, port=DASHBOARD_PORT, debug=False, use_reloader=False)
 
 
 def telegram_api_url(method: str) -> str:
@@ -115,7 +129,7 @@ def montar_alerta_consolidado(resultados: list[dict]) -> str:
     if not resultados:
         return ""
 
-    msg = "🚨 RADAR DE MILHAS PRO\n\n"
+    msg = "🚨 RADAR DE MILHAS PRO MAX v4\n\n"
     msg += f"{len(resultados)} oportunidade(s) relevante(s) detectada(s)\n\n"
 
     for i, r in enumerate(resultados[:MAX_ALERTAS_CONSOLIDADOS], 1):
@@ -132,25 +146,38 @@ def montar_alerta_consolidado(resultados: list[dict]) -> str:
 
 def texto_menu() -> str:
     return (
-        "✈️ Radar de Milhas PRO v3\n\n"
+        "✈️ Radar de Milhas PRO MAX v4\n\n"
         "/menu\n"
         "/promocoes\n"
         "/transferencias\n"
         "/passagens\n"
         "/ranking\n"
         "/status\n"
+        "/dashboard\n"
         "/teste"
     )
 
 
 def texto_status() -> str:
-    ultima_execucao = LAST_RADAR_RUN or "ainda não executado"
-    erro = LAST_ERROR or "nenhum"
+    metrics = carregar_metrics()
+    ultima_execucao = LAST_RADAR_RUN or metrics.get("last_run", "ainda não executado")
+    erro = LAST_ERROR or metrics.get("last_error", "nenhum") or "nenhum"
 
     return (
         "🟢 Radar online\n\n"
         f"⏱ Intervalo do radar: {INTERVALO_RADAR} segundos\n"
-        f"📥 Últimos resultados encontrados: {LAST_RESULTS_COUNT}\n"
+        f"📥 Promoções detectadas: {metrics.get('items_detected', 0)}\n"
+        f"📡 Fontes monitoradas: {metrics.get('sources_monitored', 0)}\n"
+        f"✅ Fontes ativas: {metrics.get('sources_active', 0)}\n"
+        f"❌ Fontes com erro: {metrics.get('sources_error', 0)}\n\n"
+        "Detectores ativos:\n"
+        "✔ blogs\n"
+        "✔ programas\n"
+        "✔ milheiro\n"
+        "✔ redes sociais\n"
+        "✔ confirmação múltipla\n"
+        "✔ score automático\n"
+        "✔ envio no canal\n\n"
         f"📤 Últimos alertas enviados: {LAST_SENT_COUNT}\n"
         f"🕒 Última execução: {ultima_execucao}\n"
         f"⚠️ Último erro: {erro}"
@@ -187,7 +214,7 @@ def filtrar_por_tipo(resultados: list[dict], tipos: list[str]) -> list[dict]:
 
 def executar_teste_manual(chat_id: str) -> None:
     try:
-        resultados = executar_radar()
+        resultados, _ = executar_radar()
         enviar_telegram(
             formatar_lista_resultados("🧪 Teste do radar", resultados),
             chat_id=chat_id
@@ -211,6 +238,7 @@ def processar_comando(texto: str, chat_id: str) -> None:
             "/passagens\n"
             "/ranking\n"
             "/status\n"
+            "/dashboard\n"
             "/teste",
             chat_id=chat_id
         )
@@ -220,16 +248,23 @@ def processar_comando(texto: str, chat_id: str) -> None:
         enviar_telegram(texto_status(), chat_id=chat_id)
         return
 
+    if comando == "/dashboard":
+        enviar_telegram(
+            f"📊 Painel interno do radar:\n\nhttp://SEU-DOMINIO-RAILWAY:{DASHBOARD_PORT}",
+            chat_id=chat_id
+        )
+        return
+
     if comando == "/teste":
         executar_teste_manual(chat_id)
         return
 
     if comando == "/promocoes":
         try:
-            resultados = executar_radar()
-            bonus = filtrar_por_tipo(resultados, ["transferencia_bonificada", "milheiro_barato"])
+            resultados, _ = executar_radar()
+            promo = filtrar_por_tipo(resultados, ["transferencia_bonificada", "milheiro_barato"])
             enviar_telegram(
-                formatar_lista_resultados("🔥 Promoções detectadas", bonus),
+                formatar_lista_resultados("🔥 Promoções detectadas", promo),
                 chat_id=chat_id
             )
         except Exception as e:
@@ -238,7 +273,7 @@ def processar_comando(texto: str, chat_id: str) -> None:
 
     if comando == "/transferencias":
         try:
-            resultados = executar_radar()
+            resultados, _ = executar_radar()
             transf = filtrar_por_tipo(resultados, ["transferencia_bonificada"])
             enviar_telegram(
                 formatar_lista_resultados("🔁 Transferências detectadas", transf),
@@ -250,7 +285,7 @@ def processar_comando(texto: str, chat_id: str) -> None:
 
     if comando == "/passagens":
         try:
-            resultados = executar_radar()
+            resultados, _ = executar_radar()
             passagens = filtrar_por_tipo(resultados, ["passagem_barata"])
             enviar_telegram(
                 formatar_lista_resultados("✈️ Passagens detectadas", passagens),
@@ -262,7 +297,7 @@ def processar_comando(texto: str, chat_id: str) -> None:
 
     if comando == "/ranking":
         try:
-            resultados = executar_radar()
+            resultados, _ = executar_radar()
             enviar_telegram(
                 formatar_lista_resultados("🏆 Ranking atual do radar", resultados),
                 chat_id=chat_id
@@ -300,7 +335,7 @@ def executar_ciclo_radar(alertas_enviados: dict) -> None:
     enviados_nesta_execucao = 0
 
     try:
-        resultados = executar_radar()
+        resultados, metrics = executar_radar()
         LAST_RESULTS_COUNT = len(resultados)
 
         fortes = []
@@ -323,6 +358,8 @@ def executar_ciclo_radar(alertas_enviados: dict) -> None:
             if mensagem and enviar_telegram(mensagem):
                 enviados_nesta_execucao = len(fortes)
 
+        registrar_enviados(metrics, enviados_nesta_execucao)
+        salvar_metrics(metrics)
         salvar_alertas_enviados(alertas_enviados)
 
         LAST_SENT_COUNT = enviados_nesta_execucao
@@ -334,15 +371,22 @@ def executar_ciclo_radar(alertas_enviados: dict) -> None:
 
     except Exception as e:
         LAST_ERROR = str(e)
+        metrics = carregar_metrics()
+        registrar_erro(metrics, str(e))
+        salvar_metrics(metrics)
         LAST_RADAR_RUN = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print("Erro loop:", e)
 
 
 def main() -> None:
-    print("Radar de Milhas PRO v3 iniciado")
+    print("Radar de Milhas PRO MAX v4 iniciado")
 
     if not TELEGRAM_TOKEN:
         print("TELEGRAM_TOKEN não configurado")
+
+    # sobe dashboard em thread separada
+    thread_dashboard = threading.Thread(target=iniciar_dashboard, daemon=True)
+    thread_dashboard.start()
 
     alertas_enviados = carregar_alertas_enviados()
     proxima_execucao_radar = 0
