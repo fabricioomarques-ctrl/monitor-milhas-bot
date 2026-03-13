@@ -8,7 +8,7 @@ HEADERS = {
 }
 
 
-def coletar_bancos():
+def coletar_bancos() -> list[dict]:
     resultados = []
 
     for nome, url in BANCOS_URLS.items():
