@@ -9,42 +9,37 @@ CHAT_ID = os.getenv("CHAT_ID", "")
 CANAL_ID = os.getenv("CANAL_ID", "")
 
 # =========================
-# RADAR
+# OPERAÇÃO
 # =========================
 
-# 10 minutos, fiel ao projeto original
-INTERVALO = int(os.getenv("INTERVALO", "600"))
+# 10 minutos, fiel ao manual v3
+INTERVALO_RADAR = int(os.getenv("INTERVALO_RADAR", "600"))
 
-# polling dos comandos
+# intervalo de polling dos comandos
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "3"))
 
-# quantos itens mostrar por comando
+# número máximo de itens mostrados por comando
 LIMITE_COMANDO = int(os.getenv("LIMITE_COMANDO", "5"))
 
-# opção B: alerta automático a partir de score 7
+# score mínimo para alerta automático (opção B escolhida)
 SCORE_MINIMO_ALERTA = float(os.getenv("SCORE_MINIMO_ALERTA", "7.0"))
 
-# máximo de itens por alerta consolidado
+# quantidade máxima de oportunidades por alerta consolidado
 MAX_ALERTAS_CONSOLIDADOS = int(os.getenv("MAX_ALERTAS_CONSOLIDADOS", "5"))
-
-# =========================
-# REGRAS DE DETECÇÃO
-# =========================
-
-BONUS_MINIMO = int(os.getenv("BONUS_MINIMO", "80"))
-MILHEIRO_MAXIMO = float(os.getenv("MILHEIRO_MAXIMO", "18"))
-PASSAGEM_MILHAS_MAX = int(os.getenv("PASSAGEM_MILHAS_MAX", "5000"))
 
 # =========================
 # FONTES - BLOGS
 # =========================
 
 BLOG_FEEDS = [
-    "https://pontospravoar.com/feed",
-    "https://passageirodeprimeira.com/feed",
     "https://www.melhoresdestinos.com.br/feed",
+    "https://passageirodeprimeira.com/feed",
+    "https://pontospravoar.com/feed",
     "https://estevaopelomundo.com.br/feed",
 ]
+
+# blogs confiáveis
+TRUSTED_BLOG_SOURCES = set(BLOG_FEEDS)
 
 # =========================
 # FONTES - PROGRAMAS
@@ -86,6 +81,14 @@ SOCIAL_URLS = {
 }
 
 # =========================
+# DETECÇÃO
+# =========================
+
+BONUS_MINIMO = int(os.getenv("BONUS_MINIMO", "80"))
+MILHEIRO_MAXIMO = float(os.getenv("MILHEIRO_MAXIMO", "18"))
+PASSAGEM_MILHAS_MAX = int(os.getenv("PASSAGEM_MILHAS_MAX", "5000"))
+
+# =========================
 # RUÍDO
 # =========================
 
@@ -115,20 +118,6 @@ NOISE_WORDS = [
 # CONTEXTOS
 # =========================
 
-CONTEXTO_MILHEIRO = [
-    "milheiro",
-    "milheiros",
-    "milha",
-    "milhas",
-    "1000 milhas",
-    "1.000 milhas",
-    "compra de milhas",
-    "venda de milhas",
-    "preco do milheiro",
-    "preço do milheiro",
-    "lote de milhas",
-]
-
 KEYWORDS_TRANSFERENCIA = [
     "transferencia bonificada",
     "transferência bonificada",
@@ -143,8 +132,8 @@ KEYWORDS_PASSAGEM = [
     "passagem",
     "passagens",
     "trechos",
-    "voos",
     "voo",
+    "voos",
     "milhas latam pass",
     "milhas smiles",
     "milhas azul",
@@ -152,5 +141,16 @@ KEYWORDS_PASSAGEM = [
     "a partir de",
 ]
 
-# blogs confiáveis: no projeto v3 eles contam como fonte válida
-TRUSTED_BLOG_SOURCES = set(BLOG_FEEDS)
+CONTEXTO_MILHEIRO = [
+    "milheiro",
+    "milheiros",
+    "milha",
+    "milhas",
+    "1000 milhas",
+    "1.000 milhas",
+    "compra de milhas",
+    "venda de milhas",
+    "preco do milheiro",
+    "preço do milheiro",
+    "lote de milhas",
+]
