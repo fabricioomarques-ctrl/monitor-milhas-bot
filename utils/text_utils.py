@@ -56,10 +56,22 @@ def detect_percent(text: str):
 
 
 def detect_miles_amount(text: str):
-    match = re.search(r"(\d{3,6})\s*(milhas|pontos)", text.lower())
+    text = normalize_text(text)
+    match = re.search(r"(\d{3,6})\s*(milhas|pontos)", text)
     if match:
         try:
             return int(match.group(1))
         except Exception:
             return None
     return None
+
+
+def split_sentences(text: str) -> list[str]:
+    text = strip_html_tags(text or "")
+    parts = re.split(r"(?<=[\.\!\?])\s+", text)
+    cleaned = []
+    for part in parts:
+        part = re.sub(r"\s+", " ", part).strip()
+        if len(part) >= 20:
+            cleaned.append(part)
+    return cleaned
