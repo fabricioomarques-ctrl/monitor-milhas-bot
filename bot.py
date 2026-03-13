@@ -1,12 +1,10 @@
 import os
 import re
 import json
-import time
 import html
 import hashlib
 import logging
 from datetime import datetime
-from urllib.parse import urlparse
 
 import requests
 import feedparser
@@ -20,17 +18,18 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "").strip()
 CHAT_ID = os.getenv("CHAT_ID", "").strip()
 CANAL_ID = os.getenv("CANAL_ID", "").strip()
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", CHAT_ID).strip()
 
 PROMOCOES_FILE = "promocoes_enviadas.json"
 DASHBOARD_FILE = "dashboard_metrics.json"
+
 REQUEST_TIMEOUT = 20
-RADAR_INTERVAL_SECONDS = 600  # ~10 minutos
+RADAR_INTERVAL_SECONDS = 600  # 10 minutos
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s"
 )
-
 logger = logging.getLogger("radar_milhas_pro")
 
 if not TELEGRAM_TOKEN:
@@ -41,8 +40,6 @@ if not CANAL_ID:
 # =========================================================
 # FONTES MONITORADAS (14)
 # =========================================================
-# Estrutura fiel ao que você mostrou: blogs, programas,
-# milheiro, redes sociais, confirmação múltipla, score.
 
 FONTES = [
     # BLOGS
@@ -123,7 +120,7 @@ FONTES = [
         "group": "milheiro",
     },
 
-    # REDES / CANAIS / ALERTAS
+    # REDES / ALERTAS
     {
         "name": "Alerta Passagens",
         "type": "html",
@@ -155,7 +152,7 @@ STATE = {
 }
 
 # =========================================================
-# UTILITÁRIOS DE ARQUIVO
+# ARQUIVOS
 # =========================================================
 
 def load_json_file(path: str, default):
@@ -163,7 +160,8 @@ def load_json_file(path: str, default):
         if not os.path.exists(path):
             return default
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        return data
     except Exception as e:
         logger.exception("Falha ao carregar %s: %s", path, e)
         return default
@@ -177,12 +175,18 @@ def save_json_file(path: str, data):
         logger.exception("Falha ao salvar %s: %s", path, e)
 
 
+def ensure_promocoes_list(data):
+    if isinstance(data, list):
+        return data
+    return []
+
+
 def load_state():
-    saved_promos = load_json_file(PROMOCOES_FILE, [])
+    saved_promos = ensure_promocoes_list(load_json_file(PROMOCOES_FILE, []))
     metrics = load_json_file(DASHBOARD_FILE, {})
 
     STATE["promocoes"] = saved_promos
-    STATE["sent_ids"] = {p["id"] for p in saved_promos if "id" in p}
+    STATE["sent_ids"] = {p["id"] for p in saved_promos if isinstance(p, dict) and "id" in p}
 
     STATE["ultimos_alertas_enviados"] = metrics.get("ultimos_alertas_enviados", 0)
     STATE["ultima_execucao"] = metrics.get("ultima_execucao")
@@ -214,7 +218,20 @@ def persist_state():
     )
 
 # =========================================================
-# NORMALIZAÇÃO E FILTRO PROFISSIONAL
+# ADMIN
+# =========================================================
+
+def is_admin(update: Update) -> bool:
+    if not update.effective_chat:
+        return False
+    return str(update.effective_chat.id) == str(ADMIN_CHAT_ID)
+
+
+async def deny_admin(update: Update):
+    await update.message.reply_text("⛔ Comando disponível apenas para o administrador.")
+
+# =========================================================
+# NORMALIZAÇÃO E FILTRO
 # =========================================================
 
 RUIDOS = [
@@ -230,6 +247,13 @@ RUIDOS = [
     "shopping de pontos",
     "loja parceira",
     "produto físico",
+    "echo show",
+    "seculus",
+    "guess",
+    "hero seguros",
+    "loung",
+    "lounge",
+    "bh airport",
 ]
 
 KEYWORDS_TRANSFERENCIA = [
@@ -253,16 +277,13 @@ KEYWORDS_PASSAGENS = [
     "voos",
     "trechos",
     "alerta de passagens",
-    "rio de janeiro",
-    "são paulo",
+    "voo",
+    "pontos azul",
     "azul fidelidade",
-    "latam pass",
-    "smiles",
 ]
 
 KEYWORDS_MILHEIRO = [
     "milheiro",
-    "r$",
     "compra de milhas",
     "venda de milhas",
     "mercado de milhas",
@@ -283,6 +304,18 @@ KEYWORDS_PROMO = [
     "segue valendo",
     "acaba hoje",
 ]
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/123.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+}
 
 def strip_html_tags(text: str) -> str:
     text = re.sub(r"<script.*?>.*?</script>", " ", text, flags=re.S | re.I)
@@ -311,16 +344,10 @@ def build_item_id(source_name: str, title: str, link: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
 # =========================================================
-# CLASSIFICAÇÃO E SCORE
+# SCORE / CLASSIFICAÇÃO
 # =========================================================
 
 def detect_price_brl(text: str):
-    """
-    Detecta valores como:
-    R$ 10,80
-    R$10.80
-    10,80
-    """
     normalized = text.replace(".", "").replace(",", ".")
     matches = re.findall(r"r\$\s*(\d+(?:\.\d{1,2})?)", normalized, flags=re.I)
     if matches:
@@ -397,7 +424,7 @@ def classify_score(title: str, content: str, promo_type: str):
         return 7.0, price
 
     if promo_type == "passagens":
-        if "a partir de" in combined or "resgate" in combined:
+        if "a partir de" in combined or "resgate" in combined or "trechos" in combined:
             return 7.5, price
         return 7.0, price
 
@@ -415,14 +442,10 @@ def classificar_promocao(score: float) -> str:
     return "🟢 PROMOÇÃO BOA"
 
 # =========================================================
-# ITEM 18 - CLASSIFICADOR IA LOCAL / PAINEL / EXPANSÃO
+# ITEM 18
 # =========================================================
-# Sem mudar comandos. Implementado internamente.
 
 def classificador_ia_local(title: str, content: str, promo_type: str, score: float) -> dict:
-    """
-    Classificador local simples, embutido no bot.py.
-    """
     combined = normalize_text(f"{title} {content}")
 
     prioridade = "normal"
@@ -434,7 +457,7 @@ def classificador_ia_local(title: str, content: str, promo_type: str, score: flo
     antecipada = any(k in combined for k in [
         "campanha",
         "landing page",
-        "novo banner",
+        "banner",
         "segue valendo",
         "acaba hoje",
         "assine",
@@ -448,19 +471,11 @@ def classificador_ia_local(title: str, content: str, promo_type: str, score: flo
     }
 
 # =========================================================
-# COLETA DE FONTES
+# COLETA
 # =========================================================
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-    ),
-    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-}
-
 def fetch_url(url: str) -> str:
-    response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+    response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT, allow_redirects=True)
     response.raise_for_status()
     return response.text
 
@@ -494,12 +509,17 @@ def collect_html(source: dict) -> list:
     text_norm = normalize_text(clean_text)
 
     patterns = [
-        r"[^.!?\n]{0,120}(milheiro[^.!?\n]{0,200})",
-        r"[^.!?\n]{0,120}(transfer[êe]ncia[^.!?\n]{0,200})",
-        r"[^.!?\n]{0,120}(b[oô]nus[^.!?\n]{0,200})",
-        r"[^.!?\n]{0,120}(passagens?[^.!?\n]{0,200})",
-        r"[^.!?\n]{0,120}(resgate[^.!?\n]{0,200})",
-        r"[^.!?\n]{0,120}(clube[^.!?\n]{0,200})",
+        r"[^.!?\n]{0,120}(milheiro[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,120}(transfer[êe]ncia[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,120}(b[oô]nus[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,120}(passagens?[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,120}(resgate[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,120}(clube[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,120}(latam[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,120}(smiles[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,120}(livelo[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,120}(esfera[^.!?\n]{0,220})",
+        r"[^.!?\n]{0,120}(azul[^.!?\n]{0,220})",
     ]
 
     found_snippets = []
@@ -543,16 +563,13 @@ def coletar_todas_fontes() -> list:
             else:
                 data = collect_html(source)
 
+            fontes_ativas += 1
             if data:
-                fontes_ativas += 1
                 results.extend(data)
-            else:
-                # fonte sem item útil conta como ativa, mas sem extração útil
-                fontes_ativas += 1
 
         except Exception as e:
             fontes_com_erro += 1
-            falhas[source["name"]] = str(e)[:200]
+            falhas[source["name"]] = str(e)[:180]
             logger.warning("Falha em %s: %s", source["name"], e)
 
     STATE["fontes_ativas"] = fontes_ativas
@@ -584,7 +601,7 @@ def calcular_confirmacoes(candidates: list) -> dict:
     return confirmations
 
 # =========================================================
-# TRANSFORMAÇÃO EM PROMOÇÕES
+# PROMOÇÕES
 # =========================================================
 
 def transformar_em_promocoes(raw_items: list) -> list:
@@ -625,13 +642,9 @@ def transformar_em_promocoes(raw_items: list) -> list:
             "ai": ai_data,
         })
 
-    # Ordenação: score maior primeiro, depois mais novas
     promotions.sort(key=lambda p: (p["score"], p["created_at"]), reverse=True)
     return promotions
 
-# =========================================================
-# ALERTAS
-# =========================================================
 
 def promo_resumo_ranking(promo: dict) -> str:
     promo_type = promo["type"]
@@ -651,7 +664,6 @@ def promo_resumo_ranking(promo: dict) -> str:
 
 def format_promo_alert(promo: dict) -> str:
     linhas = ["💰 PROMOÇÃO CONFIRMADA", ""]
-
     linhas.append(f"Programa: {promo['program']}")
     linhas.append(f"Título: {promo['title']}")
 
@@ -674,21 +686,22 @@ async def enviar_alerta_canal(context: ContextTypes.DEFAULT_TYPE, promo: dict):
     mensagem = format_promo_alert(promo)
     await context.bot.send_message(chat_id=CANAL_ID, text=mensagem)
 
-# =========================================================
-# RADAR
-# =========================================================
 
 def adicionar_promocao_se_nova(promo: dict) -> bool:
     if promo["id"] in STATE["sent_ids"]:
         return False
 
+    if not isinstance(STATE["promocoes"], list):
+        STATE["promocoes"] = []
+
     STATE["promocoes"].insert(0, promo)
     STATE["sent_ids"].add(promo["id"])
-
-    # mantém histórico controlado
     STATE["promocoes"] = STATE["promocoes"][:400]
     return True
 
+# =========================================================
+# EXECUÇÃO DO RADAR
+# =========================================================
 
 async def executar_radar(context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -699,7 +712,6 @@ async def executar_radar(context: ContextTypes.DEFAULT_TYPE):
 
         for promo in promotions:
             if adicionar_promocao_se_nova(promo):
-                # Envia só promoções relevantes
                 if promo["score"] >= 7.0:
                     await enviar_alerta_canal(context, promo)
                     enviados_neste_ciclo += 1
@@ -724,7 +736,7 @@ async def executar_radar(context: ContextTypes.DEFAULT_TYPE):
         logger.exception("Erro no radar: %s", e)
 
 # =========================================================
-# CONSULTAS PARA COMANDOS
+# CONSULTAS
 # =========================================================
 
 def latest_promotions(limit=5):
@@ -744,7 +756,7 @@ def ranking_promotions(limit=5):
     return promos[:limit]
 
 # =========================================================
-# COMANDOS DO BOT
+# COMANDOS
 # =========================================================
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -767,7 +779,9 @@ async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/transferencias\n"
         "/passagens\n"
         "/ranking\n"
-        "/status"
+        "/status\n"
+        "/testeradar\n"
+        "/debug"
     )
     await update.message.reply_text(texto)
 
@@ -854,6 +868,54 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(texto)
 
+
+async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update):
+        await deny_admin(update)
+        return
+
+    await update.message.reply_text("🧪 Teste manual do radar iniciado...")
+
+    await executar_radar(context)
+
+    texto = (
+        "✅ Teste manual concluído.\n\n"
+        f"Fontes monitoradas: {STATE['fontes_monitoradas']}\n"
+        f"Fontes ativas: {STATE['fontes_ativas']}\n"
+        f"Fontes com erro: {STATE['fontes_com_erro']}\n"
+        f"Promoções detectadas: {len(STATE['promocoes'])}\n"
+        f"Últimos alertas enviados: {STATE['ultimos_alertas_enviados']}\n"
+        f"Último erro: {STATE['ultimo_erro']}"
+    )
+    await update.message.reply_text(texto)
+
+
+async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update):
+        await deny_admin(update)
+        return
+
+    falhas = STATE.get("falhas_fontes", {})
+    if not falhas:
+        texto_falhas = "Nenhuma falha registrada agora."
+    else:
+        linhas = []
+        for nome, erro in falhas.items():
+            linhas.append(f"• {nome}: {erro}")
+        texto_falhas = "\n".join(linhas)
+
+    texto = (
+        "🛠 DEBUG RADAR\n\n"
+        f"Fontes monitoradas: {STATE['fontes_monitoradas']}\n"
+        f"Fontes ativas: {STATE['fontes_ativas']}\n"
+        f"Fontes com erro: {STATE['fontes_com_erro']}\n"
+        f"Última execução: {STATE['ultima_execucao']}\n"
+        f"Último erro geral: {STATE['ultimo_erro']}\n\n"
+        "Falhas por fonte:\n"
+        f"{texto_falhas}"
+    )
+    await update.message.reply_text(texto)
+
 # =========================================================
 # MAIN
 # =========================================================
@@ -868,6 +930,8 @@ def build_app():
     app.add_handler(CommandHandler("passagens", cmd_passagens))
     app.add_handler(CommandHandler("ranking", cmd_ranking))
     app.add_handler(CommandHandler("status", cmd_status))
+    app.add_handler(CommandHandler("testeradar", cmd_testeradar))
+    app.add_handler(CommandHandler("debug", cmd_debug))
 
     return app
 
