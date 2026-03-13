@@ -4,10 +4,18 @@ from utils.texto import normalizar_texto, extrair_percentuais
 
 def detectar_transferencia(item: dict) -> dict | None:
     texto = normalizar_texto(item.get("texto", ""))
+    titulo = item.get("titulo", "")
+    link = item.get("link", "")
+    fonte = item.get("fonte", "")
+    origem = item.get("origem", "")
 
-    if not any(normalizar_texto(k) in texto for k in KEYWORDS_TRANSFERENCIA):
+    # exige contexto real de transferência
+    tem_contexto = any(normalizar_texto(k) in texto for k in KEYWORDS_TRANSFERENCIA)
+
+    if not tem_contexto:
         return None
 
+    # extrai qualquer percentual existente
     percentuais = extrair_percentuais(texto)
 
     if not percentuais:
@@ -20,10 +28,10 @@ def detectar_transferencia(item: dict) -> dict | None:
 
     return {
         "tipo": "transferencia_bonificada",
-        "origem": item.get("origem", ""),
-        "fonte": item.get("fonte", ""),
-        "titulo": item.get("titulo", ""),
-        "link": item.get("link", ""),
+        "origem": origem,
+        "fonte": fonte,
+        "titulo": titulo,
+        "link": link,
         "detalhe": f"Transferência bonificada com {bonus}% de bônus",
         "bonus": bonus,
     }
