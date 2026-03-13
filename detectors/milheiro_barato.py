@@ -2,7 +2,7 @@ from config import CONTEXTO_MILHEIRO, MILHEIRO_MAXIMO
 from utils.texto import normalizar_texto, extrair_precos_reais
 
 
-def detectar_milheiro_barato(item):
+def detectar_milheiro_barato(item: dict) -> dict | None:
     texto_original = item.get("texto", "")
     texto = normalizar_texto(texto_original)
 
