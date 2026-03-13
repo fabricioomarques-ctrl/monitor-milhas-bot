@@ -10,7 +10,6 @@ from storage.estado import (
 
 
 def enviar_telegram(mensagem):
-
     if not TELEGRAM_TOKEN or not CHAT_ID:
         print("Telegram não configurado")
         return
@@ -33,7 +32,6 @@ def enviar_telegram(mensagem):
 
 
 def montar_mensagem(resultado):
-
     tipo = resultado.get("tipo", "")
     titulo = resultado.get("titulo", "")
     detalhe = resultado.get("detalhe", "")
@@ -61,25 +59,20 @@ def montar_mensagem(resultado):
 
 
 def chave_resultado(resultado):
-
     return f"{resultado.get('tipo')}|{resultado.get('link')}"
 
 
 def main():
-
     print("Radar iniciado")
 
     enviados = carregar_promocoes_enviadas()
 
     while True:
-
         try:
             resultados = executar_radar()
-
             print(f"Resultados encontrados: {len(resultados)}")
 
             for resultado in resultados:
-
                 chave = chave_resultado(resultado)
 
                 if chave in enviados:
@@ -87,9 +80,7 @@ def main():
                     continue
 
                 mensagem = montar_mensagem(resultado)
-
                 enviar_telegram(mensagem)
-
                 enviados.add(chave)
 
             salvar_promocoes_enviadas(enviados)
