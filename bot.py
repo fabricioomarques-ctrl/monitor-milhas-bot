@@ -14,6 +14,7 @@ from config import (
     MAX_ALERTAS_CONSOLIDADOS,
 )
 from engine.radar import executar_radar
+from engine.scoring import chave_duplicacao
 from storage.estado import (
     carregar_promocoes_enviadas,
     salvar_promocoes_enviadas
@@ -110,40 +111,6 @@ def obter_updates(offset=None):
     except Exception as e:
         print("Erro ao obter updates:", e)
         return []
-
-
-def chave_resultado(resultado):
-    return f"{resultado.get('tipo')}|{resultado.get('link')}"
-
-
-def montar_alerta(resultado):
-    tipo = resultado.get("tipo", "")
-    titulo = resultado.get("titulo", "")
-    detalhe = resultado.get("detalhe", "")
-    link = resultado.get("link", "")
-    fonte = resultado.get("fonte", "")
-    score = resultado.get("score", 0)
-    classificacao = resultado.get("classificacao", "🟢 PROMOÇÃO BOA")
-    confirmacao = resultado.get("confirmado_fontes", 1)
-
-    prefixos = {
-        "transferencia_bonificada": "🔁 TRANSFERÊNCIA BONIFICADA",
-        "milheiro_barato": "💰 MILHEIRO BARATO",
-        "passagem_barata": "✈️ PASSAGEM BARATA",
-    }
-
-    prefixo = prefixos.get(tipo, "📡 OPORTUNIDADE DETECTADA")
-
-    return (
-        f"{prefixo}\n\n"
-        f"📌 {titulo}\n"
-        f"📍 Fonte principal: {fonte}\n"
-        f"📝 {detalhe}\n"
-        f"📊 Score: {score}/10\n"
-        f"✅ Confirmada em {confirmacao} fonte(s)\n"
-        f"{classificacao}\n\n"
-        f"{link}"
-    )
 
 
 def montar_alerta_consolidado(resultados):
@@ -346,13 +313,13 @@ def executar_ciclo_radar(enviados):
         resultados = executar_radar()
         LAST_RESULTS_COUNT = len(resultados)
 
-        # envia só score forte e ainda não enviados
         fortes = []
+
         for resultado in resultados:
             if resultado.get("score", 0) < SCORE_MINIMO_ALERTA:
                 continue
 
-            chave = chave_resultado(resultado)
+            chave = chave_duplicacao(resultado)
 
             if chave in enviados:
                 continue
