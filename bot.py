@@ -2,9 +2,7 @@ import time
 import requests
 
 from config import TELEGRAM_TOKEN, CHAT_ID, INTERVALO
-
 from engine.radar import executar_radar
-
 from storage.estado import (
     carregar_promocoes_enviadas,
     salvar_promocoes_enviadas
@@ -20,7 +18,6 @@ def enviar_telegram(mensagem):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
 
     try:
-
         requests.post(
             url,
             json={
@@ -29,9 +26,9 @@ def enviar_telegram(mensagem):
             },
             timeout=20
         )
+        print("Mensagem enviada ao Telegram com sucesso")
 
     except Exception as e:
-
         print("Erro Telegram:", e)
 
 
@@ -44,14 +41,9 @@ def montar_mensagem(resultado):
     fonte = resultado.get("fonte", "")
 
     prefixos = {
-
         "bonus_alto": "🔥 BÔNUS ALTO DETECTADO",
-
-        "transferencia_bonificada":
-            "🔁 TRANSFERÊNCIA BONIFICADA",
-
-        "milheiro_barato":
-            "💰 MILHEIRO BARATO",
+        "transferencia_bonificada": "🔁 TRANSFERÊNCIA BONIFICADA",
+        "milheiro_barato": "💰 MILHEIRO BARATO",
     }
 
     prefixo = prefixos.get(
@@ -82,14 +74,16 @@ def main():
     while True:
 
         try:
-
             resultados = executar_radar()
+
+            print(f"Resultados encontrados: {len(resultados)}")
 
             for resultado in resultados:
 
                 chave = chave_resultado(resultado)
 
                 if chave in enviados:
+                    print("Resultado já enviado, pulando:", chave)
                     continue
 
                 mensagem = montar_mensagem(resultado)
@@ -101,7 +95,6 @@ def main():
             salvar_promocoes_enviadas(enviados)
 
         except Exception as e:
-
             print("Erro loop:", e)
 
         time.sleep(INTERVALO)
