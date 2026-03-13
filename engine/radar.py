@@ -25,13 +25,10 @@ def classificar_item(item):
     texto = item.get("texto", "")
 
     bonus = detectar_bonus(texto)
-
     milheiro = detectar_milheiro_barato(texto)
-
     transferencia = detectar_transferencia(texto)
 
     if bonus is not None and bonus >= 80:
-
         return {
             "tipo": "bonus_alto",
             "titulo": item["titulo"],
@@ -41,7 +38,6 @@ def classificar_item(item):
         }
 
     if transferencia and bonus is not None and bonus >= 70:
-
         return {
             "tipo": "transferencia_bonificada",
             "titulo": item["titulo"],
@@ -51,7 +47,6 @@ def classificar_item(item):
         }
 
     if milheiro is not None:
-
         return {
             "tipo": "milheiro_barato",
             "titulo": item["titulo"],
@@ -64,6 +59,17 @@ def classificar_item(item):
 
 
 def executar_radar():
+
+    # =========================
+    # TESTE FORÇADO DO TELEGRAM
+    # =========================
+    return [{
+        "tipo": "bonus_alto",
+        "titulo": "TESTE RADAR MILHAS",
+        "link": "https://teste.com",
+        "fonte": "sistema",
+        "detalhe": "Teste manual do radar",
+    }]
 
     dados = coletar_tudo()
 
