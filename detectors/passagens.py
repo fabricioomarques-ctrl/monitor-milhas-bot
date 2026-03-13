@@ -2,7 +2,7 @@ from config import KEYWORDS_PASSAGEM, PASSAGEM_MILHAS_MAX
 from utils.texto import normalizar_texto, extrair_valores_milhas
 
 
-def detectar_passagem_barata(item):
+def detectar_passagem(item: dict) -> dict | None:
     texto = normalizar_texto(item.get("texto", ""))
 
     if not any(normalizar_texto(k) in texto for k in KEYWORDS_PASSAGEM):
