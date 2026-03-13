@@ -36,7 +36,7 @@ def load_metrics():
             "ultimos_alertas_enviados": 0,
             "ultima_execucao": None,
             "ultimo_erro": "nenhum",
-            "fontes_monitoradas": 0,
+            "fontes_monitoradas": 15,
             "fontes_ativas": 0,
             "fontes_com_erro": 0,
             "falhas_fontes": {},
