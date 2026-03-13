@@ -9,7 +9,6 @@ from detectors.milheiro_barato import detectar_milheiro_barato
 
 
 def coletar_tudo():
-
     dados = []
 
     dados.extend(coletar_rss())
@@ -21,7 +20,6 @@ def coletar_tudo():
 
 
 def classificar_item(item):
-
     texto = item.get("texto", "")
 
     bonus = detectar_bonus(texto)
@@ -59,26 +57,11 @@ def classificar_item(item):
 
 
 def executar_radar():
-
-    # =========================
-    # TESTE FORÇADO DO TELEGRAM
-    # =========================
-    return [{
-        "tipo": "bonus_alto",
-        "titulo": "TESTE RADAR MILHAS",
-        "link": "https://teste.com",
-        "fonte": "sistema",
-        "detalhe": "Teste manual do radar",
-    }]
-
     dados = coletar_tudo()
-
     resultados = []
 
     for item in dados:
-
         r = classificar_item(item)
-
         if r:
             resultados.append(r)
 
