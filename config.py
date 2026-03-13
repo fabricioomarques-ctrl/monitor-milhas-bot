@@ -11,7 +11,8 @@ CHAT_ID = os.getenv("CHAT_ID", "")
 # CONFIGURAÇÃO DO RADAR
 # =========================
 
-INTERVALO = int(os.getenv("INTERVALO", "900"))  # 15 minutos
+# TESTE: rodar a cada 60 segundos
+INTERVALO = int(os.getenv("INTERVALO", "60"))
 
 # =========================
 # RSS DE SITES DE MILHAS
