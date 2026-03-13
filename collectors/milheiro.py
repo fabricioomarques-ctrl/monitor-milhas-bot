@@ -8,7 +8,7 @@ HEADERS = {
 }
 
 
-def coletar_milheiro():
+def coletar_milheiro() -> list[dict]:
     resultados = []
 
     for nome, url in MILHEIRO_URLS.items():
