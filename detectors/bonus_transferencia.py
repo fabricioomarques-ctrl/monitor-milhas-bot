@@ -30,5 +30,4 @@ def detectar_bonus_transferencia(item):
         "link": link,
         "detalhe": f"Transferência bonificada com {bonus}% de bônus",
         "bonus": bonus,
-        "score_base": bonus,
     }
