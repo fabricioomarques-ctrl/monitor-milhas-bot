@@ -15,16 +15,16 @@ CANAL_ID = os.getenv("CANAL_ID", "")
 # 10 minutos, fiel ao projeto original
 INTERVALO = int(os.getenv("INTERVALO", "600"))
 
-# polling dos comandos do Telegram
+# polling dos comandos
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "3"))
 
 # quantos itens mostrar por comando
 LIMITE_COMANDO = int(os.getenv("LIMITE_COMANDO", "5"))
 
-# score mínimo para enviar alerta automático
-SCORE_MINIMO_ALERTA = float(os.getenv("SCORE_MINIMO_ALERTA", "7.5"))
+# opção B: alerta automático a partir de score 7
+SCORE_MINIMO_ALERTA = float(os.getenv("SCORE_MINIMO_ALERTA", "7.0"))
 
-# quantos itens no alerta consolidado
+# máximo de itens por alerta consolidado
 MAX_ALERTAS_CONSOLIDADOS = int(os.getenv("MAX_ALERTAS_CONSOLIDADOS", "5"))
 
 # =========================
@@ -151,3 +151,6 @@ KEYWORDS_PASSAGEM = [
     "milhas tap",
     "a partir de",
 ]
+
+# blogs confiáveis: no projeto v3 eles contam como fonte válida
+TRUSTED_BLOG_SOURCES = set(BLOG_FEEDS)
