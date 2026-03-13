@@ -33,7 +33,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/ranking\n"
         "/status"
     )
-    await update.message.reply_text(texto)
+    await update.message.reply_text(texto, disable_web_page_preview=True)
 
 
 async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -47,27 +47,42 @@ async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/testeradar\n"
         "/debug"
     )
-    await update.message.reply_text(texto)
+    await update.message.reply_text(texto, disable_web_page_preview=True)
 
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(build_status_text(RADAR_INTERVAL_SECONDS))
+    await update.message.reply_text(
+        build_status_text(RADAR_INTERVAL_SECONDS),
+        disable_web_page_preview=True,
+    )
 
 
 async def cmd_promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(build_promocoes_text())
+    await update.message.reply_text(
+        build_promocoes_text(),
+        disable_web_page_preview=True,
+    )
 
 
 async def cmd_transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(build_transferencias_text())
+    await update.message.reply_text(
+        build_transferencias_text(),
+        disable_web_page_preview=True,
+    )
 
 
 async def cmd_passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(build_passagens_text())
+    await update.message.reply_text(
+        build_passagens_text(),
+        disable_web_page_preview=True,
+    )
 
 
 async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(build_ranking_text())
+    await update.message.reply_text(
+        build_ranking_text(),
+        disable_web_page_preview=True,
+    )
 
 
 async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -75,24 +90,28 @@ async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await deny_admin(update)
         return
 
-    await update.message.reply_text("🧪 Teste manual do radar iniciado...")
+    await update.message.reply_text("🧪 Teste manual do radar iniciado...", disable_web_page_preview=True)
     result = await run_radar(context.bot)
 
     texto = (
         "✅ Teste manual concluído.\n\n"
-        f"Fontes monitoradas: {build_status_text(RADAR_INTERVAL_SECONDS).splitlines()[4].split(': ')[1]}\n"
+        f"Fontes monitoradas: 15\n"
         f"Promoções analisadas: {result['analisadas']}\n"
         f"Novas promoções enviadas: {result['novas_enviadas']}\n"
         f"Último erro: {result['erro']}"
     )
-    await update.message.reply_text(texto)
+    await update.message.reply_text(texto, disable_web_page_preview=True)
 
 
 async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
         await deny_admin(update)
         return
-    await update.message.reply_text(build_debug_text())
+
+    await update.message.reply_text(
+        build_debug_text(),
+        disable_web_page_preview=True,
+    )
 
 
 async def scheduled_scan(bot):
