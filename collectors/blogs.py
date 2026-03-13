@@ -1,31 +1,30 @@
 import feedparser
 
-
-BLOG_FEEDS = [
-    "https://pontospravoar.com/feed",
-    "https://passageirodeprimeira.com/feed",
-    "https://www.melhoresdestinos.com.br/feed",
-]
+from config import BLOG_FEEDS
 
 
 def coletar_blogs():
-
     resultados = []
 
-    for feed in BLOG_FEEDS:
-
+    for feed_url in BLOG_FEEDS:
         try:
+            feed = feedparser.parse(feed_url)
 
-            data = feedparser.parse(feed)
+            for entry in feed.entries[:10]:
+                titulo = getattr(entry, "title", "") or ""
+                link = getattr(entry, "link", "") or ""
+                resumo = getattr(entry, "summary", "") or ""
+                publicado = getattr(entry, "published", "") or ""
 
-            for entry in data.entries[:5]:
+                texto = f"{titulo} {resumo}"
 
                 resultados.append({
-                    "tipo": "blog",
-                    "titulo": entry.title,
-                    "link": entry.link,
-                    "fonte": feed,
-                    "detalhe": "Promoção detectada em blog"
+                    "origem": "blog",
+                    "fonte": feed_url,
+                    "titulo": titulo,
+                    "link": link,
+                    "texto": texto,
+                    "publicado": publicado,
                 })
 
         except Exception:
