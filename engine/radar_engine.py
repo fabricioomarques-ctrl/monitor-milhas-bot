@@ -30,6 +30,9 @@ class RadarState:
         self.metrics.setdefault("fontes_com_erro", 0)
         self.metrics.setdefault("falhas_fontes", {})
 
+        # já nasce com total de fontes correto
+        self.metrics["fontes_monitoradas"] = len(FONTES)
+
     def persist(self):
         save_promocoes(self.promocoes)
         save_metrics(self.metrics)
@@ -89,21 +92,25 @@ async def run_radar(bot):
         raw_items = _collect_all_sources()
         promotions = transformar_em_promocoes(raw_items)
 
-        enviados_neste_ciclo = 0
+        novas_reais = 0
 
         for promo in promotions:
             if _add_if_new(promo):
-                await bot.send_message(chat_id=bot._radar_channel_id, text=format_promo_card(promo))
-                enviados_neste_ciclo += 1
+                await bot.send_message(
+                    chat_id=bot._radar_channel_id,
+                    text=format_promo_card(promo),
+                    disable_web_page_preview=True,
+                )
+                novas_reais += 1
 
-        STATE.metrics["ultimos_alertas_enviados"] = enviados_neste_ciclo
+        STATE.metrics["ultimos_alertas_enviados"] = novas_reais
         STATE.metrics["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         STATE.metrics["ultimo_erro"] = "nenhum"
         STATE.persist()
 
         return {
             "analisadas": len(promotions),
-            "novas_enviadas": enviados_neste_ciclo,
+            "novas_enviadas": novas_reais,
             "erro": "nenhum",
         }
 
@@ -211,8 +218,9 @@ def build_ranking_text(limit=5):
     if not promos:
         return "🏆 Ranking promoções\n\nNenhuma promoção registrada ainda."
 
+    medals = {1: "1️⃣", 2: "2️⃣", 3: "3️⃣"}
     lines = ["🏆 Ranking promoções", ""]
     for idx, promo in enumerate(promos, start=1):
-        medal = ["1️⃣", "2️⃣", "3️⃣"].get(idx - 1, f"{idx}️⃣") if idx <= 3 else f"{idx}."
-        lines.append(f"{medal} {promo_resumo_ranking(promo)}")
+        prefix = medals.get(idx, f"{idx}.")
+        lines.append(f"{prefix} {promo_resumo_ranking(promo)}")
     return "\n".join(lines)
