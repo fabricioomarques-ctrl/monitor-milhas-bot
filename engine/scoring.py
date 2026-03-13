@@ -1,7 +1,10 @@
 from utils.texto import slug_texto
+from engine.ai_classifier import enriquecer_contexto
 
 
 def calcular_score(item: dict) -> float:
+    item = enriquecer_contexto(item)
+
     tipo = item.get("tipo", "")
     origem = item.get("origem", "")
 
@@ -18,32 +21,61 @@ def calcular_score(item: dict) -> float:
             score = 8.5
         elif bonus >= 80:
             score = 7.5
+        elif bonus >= 70:
+            score = 7.3
+        elif bonus >= 60:
+            score = 7.0
+        elif bonus >= 50:
+            score = 6.5
+        elif bonus >= 40:
+            score = 6.0
+        elif bonus >= 30:
+            score = 5.5
+        else:
+            score = 5.0
 
     elif tipo == "milheiro_barato":
         preco = float(item.get("preco", 999))
 
         if preco <= 14:
-            score = 9.5
+            score = 9.8
         elif preco <= 15:
-            score = 8.5
+            score = 9.0
         elif preco <= 16:
             score = 8.0
+        elif preco <= 17:
+            score = 7.0
         elif preco <= 18:
-            score = 7.5
+            score = 6.0
+        elif preco <= 20:
+            score = 5.5
+        else:
+            score = 5.0
 
     elif tipo == "passagem_barata":
         milhas = int(item.get("milhas", 999999))
 
-        if milhas <= 3000:
-            score = 9.0
-        elif milhas <= 4000:
-            score = 8.5
+        if milhas <= 3500:
+            score = 9.5
         elif milhas <= 5000:
-            score = 7.5
+            score = 9.0
+        elif milhas <= 7000:
+            score = 8.0
+        elif milhas <= 9000:
+            score = 7.0
+        elif milhas <= 12000:
+            score = 6.0
+        else:
+            score = 5.0
 
-    # classificador mais inteligente: fonte oficial soma confiança
     if origem in ("programa", "banco"):
         score += 0.5
+
+    if item.get("ai_urgencia"):
+        score += 0.3
+
+    if item.get("ai_oficial"):
+        score += 0.2
 
     return min(round(score, 1), 10.0)
 
