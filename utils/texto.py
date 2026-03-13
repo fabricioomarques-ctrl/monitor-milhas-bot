@@ -34,7 +34,6 @@ def extrair_precos_reais(texto):
 
 def extrair_valores_milhas(texto):
     texto = normalizar_texto(texto)
-
     encontrados = re.findall(r"(\d{1,3}(?:\.\d{3})+|\d{3,5})\s+milhas", texto)
     valores = []
 
@@ -45,3 +44,10 @@ def extrair_valores_milhas(texto):
             continue
 
     return valores
+
+
+def slug_promocao(texto):
+    texto = normalizar_texto(texto)
+    texto = re.sub(r"[^a-z0-9]+", "-", texto)
+    texto = re.sub(r"-+", "-", texto).strip("-")
+    return texto[:120]
