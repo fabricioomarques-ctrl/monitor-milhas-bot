@@ -26,5 +26,4 @@ def detectar_passagem_barata(item):
         "link": item.get("link", ""),
         "detalhe": f"Passagem detectada por {menor} milhas",
         "milhas": menor,
-        "score_base": 100 - int(menor / 100),
     }
