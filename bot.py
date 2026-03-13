@@ -122,7 +122,7 @@ def texto_menu():
         "✈️ Radar de Milhas PRO\n\n"
         "/menu\n"
         "/promocoes\n"
-        "/transferecias\n"
+        "/transferencias\n"
         "/passagens\n"
         "/ranking\n"
         "/status\n"
@@ -200,7 +200,7 @@ def processar_comando(texto, chat_id):
         enviar_telegram(
             "📡 MENU\n\n"
             "/promocoes\n"
-            "/transferecias\n"
+            "/transferencias\n"
             "/passagens\n"
             "/ranking\n"
             "/status\n"
@@ -229,7 +229,7 @@ def processar_comando(texto, chat_id):
             enviar_telegram(f"❌ Erro em /promocoes: {e}", chat_id=chat_id)
         return
 
-    if comando == "/transferecias" or comando == "/transferencias":
+    if comando in ("/transferencias", "/transferecias"):
         try:
             resultados = executar_radar()
             transf = filtrar_por_tipo(resultados, ["transferencia_bonificada"])
@@ -238,7 +238,7 @@ def processar_comando(texto, chat_id):
                 chat_id=chat_id
             )
         except Exception as e:
-            enviar_telegram(f"❌ Erro em /transferecias: {e}", chat_id=chat_id)
+            enviar_telegram(f"❌ Erro em /transferencias: {e}", chat_id=chat_id)
         return
 
     if comando == "/passagens":
