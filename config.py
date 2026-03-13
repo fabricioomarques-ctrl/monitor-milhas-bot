@@ -14,6 +14,9 @@ CHAT_ID = os.getenv("CHAT_ID", "")
 # 3600 segundos = 1 hora
 INTERVALO = int(os.getenv("INTERVALO", "3600"))
 
+# intervalo de checagem de comandos do Telegram
+POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "3"))
+
 # =========================
 # RSS DE SITES DE MILHAS
 # =========================
