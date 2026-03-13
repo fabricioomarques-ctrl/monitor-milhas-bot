@@ -1,7 +1,7 @@
-from utils.texto import normalizar_texto, slug_promocao
+from utils.texto import slug_texto
 
 
-def calcular_score(item):
+def calcular_score(item: dict) -> float:
     tipo = item.get("tipo", "")
     origem = item.get("origem", "")
 
@@ -41,14 +41,14 @@ def calcular_score(item):
         elif milhas <= 5000:
             score = 7.5
 
-    # fonte oficial aumenta um pouco a confiança
+    # classificador mais inteligente: fonte oficial soma confiança
     if origem in ("programa", "banco"):
         score += 0.5
 
     return min(round(score, 1), 10.0)
 
 
-def classificar_score(score):
+def classificar_score(score: float) -> str:
     if score >= 9.0:
         return "🔴 PROMOÇÃO IMPERDÍVEL"
     if score >= 7.5:
@@ -56,7 +56,7 @@ def classificar_score(score):
     return "🟢 PROMOÇÃO BOA"
 
 
-def ordenar_resultados(resultados):
+def ordenar_resultados(resultados: list[dict]) -> list[dict]:
     enriquecidos = []
 
     for item in resultados:
@@ -77,43 +77,33 @@ def ordenar_resultados(resultados):
     )
 
 
-def chave_confirmacao(item):
-    titulo = normalizar_texto(item.get("titulo", ""))
+def chave_confirmacao(item: dict) -> str:
     tipo = item.get("tipo", "")
+    titulo = slug_texto(item.get("titulo", ""))
 
     if tipo == "transferencia_bonificada":
-        bonus = str(item.get("bonus", ""))
-        return f"{tipo}|{bonus}|{slug_promocao(titulo)}"
+        return f"{tipo}|{item.get('bonus', '')}|{titulo}"
 
     if tipo == "milheiro_barato":
-        preco = f"{float(item.get('preco', 0)):.2f}"
-        return f"{tipo}|{preco}|{slug_promocao(titulo)}"
+        return f"{tipo}|{float(item.get('preco', 0)):.2f}|{titulo}"
 
     if tipo == "passagem_barata":
-        milhas = str(item.get("milhas", ""))
-        return f"{tipo}|{milhas}|{slug_promocao(titulo)}"
+        return f"{tipo}|{item.get('milhas', '')}|{titulo}"
 
-    return f"{tipo}|{slug_promocao(titulo)}"
+    return f"{tipo}|{titulo}"
 
 
-def chave_duplicacao(item):
-    """
-    Chave estável para não repetir alertas.
-    Não usa link sozinho porque pequenas mudanças podem gerar duplicação.
-    """
+def chave_duplicacao(item: dict) -> str:
     tipo = item.get("tipo", "")
-    titulo = slug_promocao(item.get("titulo", ""))
+    titulo = slug_texto(item.get("titulo", ""))
 
     if tipo == "transferencia_bonificada":
-        bonus = str(item.get("bonus", ""))
-        return f"{tipo}|{bonus}|{titulo}"
+        return f"{tipo}|{item.get('bonus', '')}|{titulo}"
 
     if tipo == "milheiro_barato":
-        preco = f"{float(item.get('preco', 0)):.2f}"
-        return f"{tipo}|{preco}|{titulo}"
+        return f"{tipo}|{float(item.get('preco', 0)):.2f}|{titulo}"
 
     if tipo == "passagem_barata":
-        milhas = str(item.get("milhas", ""))
-        return f"{tipo}|{milhas}|{titulo}"
+        return f"{tipo}|{item.get('milhas', '')}|{titulo}"
 
     return f"{tipo}|{titulo}"
