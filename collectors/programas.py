@@ -8,7 +8,7 @@ HEADERS = {
 }
 
 
-def coletar_programas():
+def coletar_programas() -> list[dict]:
     resultados = []
 
     for nome, url in PROGRAMAS_URLS.items():
