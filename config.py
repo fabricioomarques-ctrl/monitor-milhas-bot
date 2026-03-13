@@ -14,7 +14,7 @@ RADAR_INTERVAL_SECONDS = 3600
 PROMOCOES_FILE = "promocoes_enviadas.json"
 METRICS_FILE = "dashboard_metrics.json"
 
-REQUEST_TIMEOUT = 15
+REQUEST_TIMEOUT = 12
 MAX_RANKING = 10
 
 if not TELEGRAM_TOKEN:
