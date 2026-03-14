@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import html
 import hashlib
 import asyncio
 from datetime import datetime, timedelta
@@ -58,19 +59,12 @@ FONTES_RSS = [
 # =========================================================
 
 FONTES_OFICIAIS = [
-    # Smiles
     {"program": "Smiles", "type_hint": "milheiro", "url": "https://www.smiles.com.br/home"},
     {"program": "Smiles", "type_hint": "milheiro", "url": "https://www.smiles.com.br/clube-smiles"},
     {"program": "Smiles", "type_hint": "transferencias", "url": "https://www.smiles.com.br/promocoes"},
-
-    # LATAM Pass
     {"program": "LATAM Pass", "type_hint": "passagens", "url": "https://latampass.latam.com/"},
-
-    # Livelo
     {"program": "Livelo", "type_hint": "transferencias", "url": "https://www.livelo.com.br/"},
     {"program": "Livelo", "type_hint": "milheiro", "url": "https://www.livelo.com.br/clube"},
-
-    # Esfera
     {"program": "Esfera", "type_hint": "transferencias", "url": "https://www.esfera.com.vc/"},
     {"program": "Esfera", "type_hint": "milheiro", "url": "https://www.esfera.com.vc/clube"},
 ]
@@ -202,6 +196,55 @@ def deduplicar(promocoes: list) -> list:
     return resultado
 
 # =========================================================
+# LIMPEZA / NORMALIZAÇÃO DE TEXTO
+# =========================================================
+
+def clean_text(texto: str) -> str:
+    texto = html.unescape(str(texto or ""))
+    texto = texto.replace("&#8230;", ".")
+    texto = texto.replace("\u2026", ".")
+    texto = BeautifulSoup(texto, "html.parser").get_text(" ", strip=True)
+    texto = re.sub(r"https?://\S+", " ", texto)
+    texto = re.sub(r"<[^>]+>", " ", texto)
+    texto = re.sub(r"\s+", " ", texto).strip()
+    return texto
+
+
+def clean_title(texto: str) -> str:
+    t = clean_text(texto).lower()
+
+    t = re.sub(r"\b\d{1,2}\s+de\s+[a-zçãé]+\s+de\s+\d{4}\b", " ", t, flags=re.I)
+    t = re.sub(r"\b\d+\s+horas?\s+atr[aá]s\b", " ", t, flags=re.I)
+    t = re.sub(r"\bsaiba mais\b", " ", t, flags=re.I)
+    t = re.sub(r"\bpublicidade\b", " ", t, flags=re.I)
+    t = re.sub(r"\bdeixe um coment[aá]rio\b", " ", t, flags=re.I)
+    t = re.sub(r"\bsegue valendo!?+\b", " ", t, flags=re.I)
+    t = re.sub(r"\bprorrogou!?+\b", " ", t, flags=re.I)
+    t = re.sub(r"\bno post\b", " ", t, flags=re.I)
+    t = re.sub(r"\bconfira os detalhes\b", " ", t, flags=re.I)
+    t = re.sub(r"[|]+", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+
+    return t
+
+
+def compact_text(texto: str, max_len: int = 140) -> str:
+    texto = clean_text(texto)
+    if len(texto) <= max_len:
+        return texto
+    corte = texto[:max_len].rsplit(" ", 1)[0].strip()
+    return corte + "..."
+
+
+def human_title(texto: str, max_len: int = 160) -> str:
+    texto = clean_text(texto)
+    texto = re.sub(r"\s+", " ", texto).strip()
+    if len(texto) <= max_len:
+        return texto
+    corte = texto[:max_len].rsplit(" ", 1)[0].strip()
+    return corte + "..."
+
+# =========================================================
 # COLETA
 # =========================================================
 
@@ -213,8 +256,8 @@ HEADERS = {
 }
 
 
-def _extrair_texto_html(html: str) -> str:
-    soup = BeautifulSoup(html, "html.parser")
+def _extrair_texto_html(html_text: str) -> str:
+    soup = BeautifulSoup(html_text, "html.parser")
     partes = []
 
     if soup.title and soup.title.get_text(strip=True):
@@ -233,8 +276,7 @@ def _extrair_texto_html(html: str) -> str:
             break
 
     texto = " ".join(partes)
-    texto = re.sub(r"\s+", " ", texto).strip()
-    return texto[:3000]
+    return clean_text(texto)[:3000]
 
 
 def coletar_rss():
@@ -248,9 +290,9 @@ def coletar_rss():
             for entry in entries[:20]:
                 itens.append(
                     {
-                        "title": entry.get("title", "") or "",
+                        "title": clean_text(entry.get("title", "") or ""),
                         "link": entry.get("link", "") or "",
-                        "summary": entry.get("summary", "") or "",
+                        "summary": clean_text(entry.get("summary", "") or ""),
                         "source_url": url,
                         "source_kind": "rss",
                         "type_hint": None,
@@ -357,26 +399,8 @@ RUIDO = [
 ]
 
 
-def _clean_spaces(texto: str) -> str:
-    return re.sub(r"\s+", " ", str(texto or "")).strip()
-
-
-def limpar_titulo(texto: str) -> str:
-    t = str(texto or "").lower()
-    t = re.sub(r"\b\d{1,2}\s+de\s+[a-zçãé]+\s+de\s+\d{4}\b", " ", t, flags=re.I)
-    t = re.sub(r"\b\d+\s+horas?\s+atr[aá]s\b", " ", t, flags=re.I)
-    t = re.sub(r"\bsaiba mais\b", " ", t, flags=re.I)
-    t = re.sub(r"\bpublicidade\b", " ", t, flags=re.I)
-    t = re.sub(r"\bdeixe um coment[aá]rio\b", " ", t, flags=re.I)
-    t = re.sub(r"\bsegue valendo!?+\b", " ", t, flags=re.I)
-    t = re.sub(r"\bprorrogou!?+\b", " ", t, flags=re.I)
-    t = re.sub(r"[|]+", " ", t)
-    t = _clean_spaces(t)
-    return t
-
-
 def _norm(texto: str) -> str:
-    return limpar_titulo(texto).lower()
+    return clean_title(texto).lower()
 
 
 def _has_any(texto: str, palavras: list[str]) -> bool:
@@ -536,7 +560,7 @@ def _classificacao(score: float) -> str:
 
 
 def _build_id(titulo: str, link: str, tipo: str) -> str:
-    base = f"{tipo}|{limpar_titulo(titulo)}|{str(link or '').strip()}"
+    base = f"{tipo}|{clean_title(titulo)}|{str(link or '').strip()}"
     return hashlib.md5(base.encode("utf-8")).hexdigest()
 
 
@@ -546,34 +570,31 @@ def transformar_em_promocoes(itens: list) -> list:
     for item in itens:
         titulo_bruto = item.get("title", "")
         summary = item.get("summary", "")
-        texto_base = f"{titulo_bruto} {summary}"
+        texto_base = f"{titulo_bruto} {summary}".strip()
         link = item.get("link", "")
         type_hint = item.get("type_hint")
         program_hint = item.get("program_hint")
 
-        titulo = limpar_titulo(texto_base)
-        tipo = _detect_type(titulo, type_hint=type_hint)
-
+        tipo = _detect_type(texto_base, type_hint=type_hint)
         if not tipo:
             continue
 
-        program = _detect_program(titulo, program_hint=program_hint)
-
+        program = _detect_program(texto_base, program_hint=program_hint)
         if tipo == "passagens" and program == "Programa não identificado":
             continue
 
         if tipo == "transferencias":
-            score = _score_transferencias(titulo)
+            score = _score_transferencias(texto_base)
         elif tipo == "milheiro":
-            score = _score_milheiro(titulo)
+            score = _score_milheiro(texto_base)
         else:
-            score = _score_passagens(titulo)
+            score = _score_passagens(texto_base)
 
-        bonus_detectado = _detectar_bonus_alto(titulo)
+        bonus_detectado = _detectar_bonus_alto(texto_base)
 
         promo = {
-            "id": _build_id(titulo, link, tipo),
-            "title": titulo[:500],
+            "id": _build_id(texto_base, link, tipo),
+            "title": human_title(texto_base, max_len=170),
             "link": link,
             "type": tipo,
             "program": program,
@@ -809,7 +830,7 @@ async def _scheduled_scan():
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "✈️ Radar de Milhas PRO MAX\n\n"
+        "✈️ Radar de Milhas PRO\n\n"
         "/menu\n"
         "/promocoes\n"
         "/transferencias\n"
@@ -893,9 +914,10 @@ async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     for i, promo in enumerate(promos, start=1):
         prefixo = medalhas.get(i, f"{i}.")
+        titulo = compact_text(promo.get("title", ""), 95)
         linhas.append(
             f"{prefixo} {promo.get('program', 'Programa não identificado')} | "
-            f"{promo.get('title', '')} | score {promo.get('score', 0)}"
+            f"{titulo} | score {promo.get('score', 0)}"
         )
 
     await update.message.reply_text("\n".join(linhas), disable_web_page_preview=True)
