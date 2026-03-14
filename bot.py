@@ -206,6 +206,9 @@ NOISE_FRAGMENTS = [
     "alerta de passagens ppv",
     "seja bem-vindo a mais uma edição do radar ppv",
     "a última edição do radar ppv da semana chegou",
+    "a última edição do radar ppv",
+    "resumo das promoções",
+    "resumo promoções",
     "a promoção do",
     "a smiles está oferecendo",
     "o smiles voltou a oferecer",
@@ -216,6 +219,15 @@ NOISE_FRAGMENTS = [
     "então está no lugar certo",
     "no artigo de hoje, separamos",
     "o post",
+]
+
+GENERIC_TRANSFER_TERMS = [
+    "radar ppv",
+    "resumo das promoções",
+    "resumo promoções",
+    "seja bem-vindo a mais uma edição",
+    "a última edição",
+    "edição do radar",
 ]
 
 def clean_text(texto: str) -> str:
@@ -262,17 +274,14 @@ def sentence_crop(texto: str, max_len: int = 170) -> str:
     return corte + "..."
 
 
-def build_short_title(title: str, summary: str = "", max_len: int = 170) -> str:
+def build_short_title(title: str, summary: str = "", max_len: int = 140) -> str:
     title = clean_text(title)
     summary = clean_text(summary)
 
     title = strip_noise_phrases(title)
     summary = strip_noise_phrases(summary)
 
-    if not title:
-        base = summary
-    else:
-        base = title
+    base = title if title else summary
 
     base = re.sub(r"\bsaiba mais\b", " ", base, flags=re.I)
     base = re.sub(r"\bpublicidade\b", " ", base, flags=re.I)
@@ -294,6 +303,11 @@ def compact_text(texto: str, max_len: int = 95) -> str:
         return texto
     corte = texto[:max_len].rsplit(" ", 1)[0].strip()
     return corte + "..."
+
+
+def is_generic_transfer_post(texto: str) -> bool:
+    t = clean_text(texto).lower()
+    return any(term in t for term in GENERIC_TRANSFER_TERMS)
 
 # =========================================================
 # COLETA
@@ -451,7 +465,7 @@ RUIDO = [
 
 
 def _norm(texto: str) -> str:
-    return build_short_title(texto, "", 250).lower()
+    return build_short_title(texto, "", 220).lower()
 
 
 def _has_any(texto: str, palavras: list[str]) -> bool:
@@ -530,6 +544,7 @@ def _detect_type(texto: str, type_hint: str | None = None):
             or "o trecho" in t
             or "voos baratos" in t
             or "ofertas" in t
+            or "off no resgate" in t
         )
         and any(p in t for p in PROGRAMAS)
     ):
@@ -558,9 +573,13 @@ def _score_transferencias(texto: str) -> float:
 
 def _score_passagens(texto: str) -> float:
     t = clean_text(texto).lower()
-    numeros = re.findall(r"(\d{3,6})", t)
 
+    if "25% off" in t or "off no resgate" in t or "desconto no resgate" in t:
+        return 9.0
+
+    numeros = re.findall(r"(\d{3,6})", t)
     valores = []
+
     for n in numeros:
         try:
             valores.append(int(n))
@@ -627,11 +646,22 @@ def transformar_em_promocoes(itens: list) -> list:
 
         texto_base = f"{titulo_bruto} {summary}".strip()
         tipo = _detect_type(texto_base, type_hint=type_hint)
+
         if not tipo:
             continue
 
+        titulo_curto = build_short_title(titulo_bruto, summary, max_len=125)
+        if not titulo_curto:
+            continue
+
         program = _detect_program(texto_base, program_hint=program_hint)
+
         if tipo == "passagens" and program == "Programa não identificado":
+            continue
+
+        if tipo == "transferencias" and (
+            program == "Programa não identificado" or is_generic_transfer_post(texto_base)
+        ):
             continue
 
         if tipo == "transferencias":
@@ -642,7 +672,6 @@ def transformar_em_promocoes(itens: list) -> list:
             score = _score_passagens(texto_base)
 
         bonus_detectado = _detectar_bonus_alto(texto_base)
-        titulo_curto = build_short_title(titulo_bruto, summary, max_len=165)
 
         promo = {
             "id": _build_id(titulo_curto, link, tipo),
@@ -932,6 +961,8 @@ async def cmd_promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_promocoes_por_tipo("transferencias", limit=5)
+    promos = [p for p in promos if p.get("program") != "Programa não identificado"]
+
     if not promos:
         texto = (
             "💳 Promoções de transferências de pontos monitoradas\n\n"
@@ -962,15 +993,15 @@ async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     linhas = ["🏆 Ranking promoções", ""]
-    medalhas = {1: "1️⃣", 2: "2️⃣", 3: "3️⃣"}
-
     for i, promo in enumerate(promos, start=1):
-        prefixo = medalhas.get(i, f"{i}.")
-        titulo = compact_text(promo.get("title", ""), 95)
-        linhas.append(
-            f"{prefixo} {promo.get('program', 'Programa não identificado')} | "
-            f"{titulo} | score {promo.get('score', 0)}"
-        )
+        linhas.append(f"{i}. {promo.get('program', 'Programa não identificado')}")
+        linhas.append(f"{promo.get('title', '')}")
+        linhas.append(f"Score: {promo.get('score', 0)}")
+        linhas.append(f"{promo.get('classification', '🟢 PROMOÇÃO BOA')}")
+        if i != len(promos):
+            linhas.append("")
+            linhas.append("━━━━━━━━━━━━━━")
+            linhas.append("")
 
     await update.message.reply_text("\n".join(linhas), disable_web_page_preview=True)
 
