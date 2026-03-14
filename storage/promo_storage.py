@@ -1,49 +1,40 @@
 import json
 import os
-from typing import Any
-
-from config import METRICS_FILE, PROMOCOES_FILE
 
 
-def _load_json(path: str, default: Any):
+ARQUIVO_PROMOCOES = "promocoes_enviadas.json"
+
+
+def _garantir_arquivo():
+    if not os.path.exists(ARQUIVO_PROMOCOES):
+        with open(ARQUIVO_PROMOCOES, "w", encoding="utf-8") as f:
+            json.dump([], f, ensure_ascii=False, indent=2)
+
+
+def carregar_promocoes():
+    _garantir_arquivo()
+
     try:
-        if not os.path.exists(path):
-            return default
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        with open(ARQUIVO_PROMOCOES, "r", encoding="utf-8") as f:
+            dados = json.load(f)
+
+        if isinstance(dados, list):
+            return dados
+
+        return []
+
     except Exception:
-        return default
+        return []
 
 
-def _save_json(path: str, data: Any):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+def salvar_promocoes(promocoes):
+    _garantir_arquivo()
 
+    if not isinstance(promocoes, list):
+        promocoes = []
 
-def load_promocoes():
-    data = _load_json(PROMOCOES_FILE, [])
-    return data if isinstance(data, list) else []
-
-
-def save_promocoes(data: list):
-    _save_json(PROMOCOES_FILE, data)
-
-
-def load_metrics():
-    data = _load_json(
-        METRICS_FILE,
-        {
-            "ultimos_alertas_enviados": 0,
-            "ultima_execucao": None,
-            "ultimo_erro": "nenhum",
-            "fontes_monitoradas": 15,
-            "fontes_ativas": 0,
-            "fontes_com_erro": 0,
-            "falhas_fontes": {},
-        },
-    )
-    return data if isinstance(data, dict) else {}
-
-
-def save_metrics(data: dict):
-    _save_json(METRICS_FILE, data)
+    try:
+        with open(ARQUIVO_PROMOCOES, "w", encoding="utf-8") as f:
+            json.dump(promocoes, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
