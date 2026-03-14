@@ -25,29 +25,27 @@ def _parse_data(valor):
     return None
 
 
-def _normalizar_texto(texto):
-    if not texto:
-        return ""
-
-    return " ".join(str(texto).lower().strip().split())
+def _norm(texto):
+    return " ".join(str(texto or "").lower().strip().split())
 
 
-def _assinatura_promocao(promo):
-    titulo = _normalizar_texto(promo.get("title", ""))
-    link = _normalizar_texto(promo.get("link", ""))
-    tipo = _normalizar_texto(promo.get("type", ""))
-    programa = _normalizar_texto(promo.get("program", ""))
+def _assinatura(promo: dict) -> str:
+    return "|".join(
+        [
+            _norm(promo.get("type")),
+            _norm(promo.get("program")),
+            _norm(promo.get("title")),
+            _norm(promo.get("link")),
+        ]
+    )
 
-    return f"{tipo}|{programa}|{titulo}|{link}"
 
-
-def deduplicar(promocoes):
+def deduplicar(promocoes: list) -> list:
     if not isinstance(promocoes, list):
         return []
 
     janela = timedelta(hours=JANELA_REPETICAO_HORAS)
-
-    promocoes_ordenadas = sorted(
+    ordenadas = sorted(
         promocoes,
         key=lambda p: _parse_data(p.get("created_at")) or datetime.min,
         reverse=True,
@@ -56,8 +54,8 @@ def deduplicar(promocoes):
     resultado = []
     vistos = {}
 
-    for promo in promocoes_ordenadas:
-        assinatura = _assinatura_promocao(promo)
+    for promo in ordenadas:
+        assinatura = _assinatura(promo)
         data_atual = _parse_data(promo.get("created_at")) or datetime.now()
 
         if assinatura not in vistos:
@@ -65,9 +63,7 @@ def deduplicar(promocoes):
             resultado.append(promo)
             continue
 
-        ultima_data = vistos[assinatura]
-
-        if abs(ultima_data - data_atual) > janela:
+        if abs(vistos[assinatura] - data_atual) > janela:
             vistos[assinatura] = data_atual
             resultado.append(promo)
 
