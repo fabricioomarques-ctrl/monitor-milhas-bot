@@ -345,10 +345,8 @@ def is_generic_transfer_post(texto: str) -> bool:
 
 def is_strict_transfer_post(texto: str) -> bool:
     t = clean_text(texto).lower()
-
     has_accept = any(term in t for term in TRANSFER_ACCEPT_TERMS)
     has_reject = any(term in t for term in TRANSFER_REJECT_TERMS)
-
     return has_accept and not has_reject
 
 # =========================================================
@@ -599,18 +597,24 @@ def _score_transferencias(texto: str) -> float:
     bonus = _detectar_bonus_alto(texto)
 
     if bonus >= 120:
-        return 9.8
+        return 10.0
     if bonus >= 100:
-        return 9.5
+        return 9.7
     if bonus >= 90:
-        return 9.0
+        return 9.4
     if bonus >= 80:
-        return 8.5
+        return 9.1
     if bonus >= 70:
-        return 8.0
+        return 8.8
     if bonus >= 60:
-        return 7.5
-    return 7.0
+        return 8.4
+    if bonus >= 50:
+        return 7.8
+    if bonus >= 40:
+        return 7.0
+    if bonus >= 30:
+        return 6.5
+    return 6.0
 
 
 def _score_passagens(texto: str) -> float:
@@ -664,11 +668,13 @@ def _score_milheiro(texto: str) -> float:
 
 
 def _classificacao(score: float) -> str:
-    if score >= 9:
+    if score >= 9.0:
         return "🔴 PROMOÇÃO IMPERDÍVEL"
-    if score >= 8:
+    if score >= 8.0:
         return "🟡 PROMOÇÃO MUITO BOA"
-    return "🟢 PROMOÇÃO BOA"
+    if score >= 7.0:
+        return "🟢 PROMOÇÃO BOA"
+    return "⚪ PROMOÇÃO REGULAR"
 
 
 def _build_id(titulo: str, link: str, tipo: str) -> str:
