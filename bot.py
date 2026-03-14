@@ -230,6 +230,39 @@ GENERIC_TRANSFER_TERMS = [
     "edição do radar",
 ]
 
+TRANSFER_ACCEPT_TERMS = [
+    "transferência bonificada",
+    "transferencia bonificada",
+    "acúmulo com parceiro",
+    "acumulo com parceiro",
+    "campanhas híbridas",
+    "campanhas hibridas",
+    "campanha híbrida",
+    "campanha hibrida",
+    "transferência",
+    "transferencia",
+    "bônus",
+    "bonus",
+    "bonificada",
+    "envie pontos",
+    "converta pontos",
+    "converta seus pontos",
+    "transfira pontos",
+    "transferir pontos",
+]
+
+TRANSFER_REJECT_TERMS = [
+    "pontos por real gasto",
+    "por real gasto",
+    "varejo",
+    "parceiros",
+    "parceiro varejista",
+    "campanha de acúmulo",
+    "campanha de acumulo",
+    "acúmulo comum",
+    "acumulo comum",
+]
+
 def clean_text(texto: str) -> str:
     texto = html.unescape(str(texto or ""))
     texto = texto.replace("&#8230;", ".")
@@ -308,6 +341,15 @@ def compact_text(texto: str, max_len: int = 95) -> str:
 def is_generic_transfer_post(texto: str) -> bool:
     t = clean_text(texto).lower()
     return any(term in t for term in GENERIC_TRANSFER_TERMS)
+
+
+def is_strict_transfer_post(texto: str) -> bool:
+    t = clean_text(texto).lower()
+
+    has_accept = any(term in t for term in TRANSFER_ACCEPT_TERMS)
+    has_reject = any(term in t for term in TRANSFER_REJECT_TERMS)
+
+    return has_accept and not has_reject
 
 # =========================================================
 # COLETA
@@ -527,7 +569,7 @@ def _detect_type(texto: str, type_hint: str | None = None):
         return "milheiro"
 
     if (
-        ("transfer" in t or "bônus" in t or "bonus" in t or "bonificada" in t)
+        ("transfer" in t or "bônus" in t or "bonus" in t or "bonificada" in t or "converta pontos" in t or "envie pontos" in t)
         and any(b in t for b in BANCOS + PROGRAMAS)
     ):
         return "transferencias"
@@ -659,10 +701,13 @@ def transformar_em_promocoes(itens: list) -> list:
         if tipo == "passagens" and program == "Programa não identificado":
             continue
 
-        if tipo == "transferencias" and (
-            program == "Programa não identificado" or is_generic_transfer_post(texto_base)
-        ):
-            continue
+        if tipo == "transferencias":
+            if program == "Programa não identificado":
+                continue
+            if is_generic_transfer_post(texto_base):
+                continue
+            if not is_strict_transfer_post(texto_base):
+                continue
 
         if tipo == "transferencias":
             score = _score_transferencias(texto_base)
