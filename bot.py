@@ -6,6 +6,7 @@ import hashlib
 import asyncio
 from datetime import datetime, timedelta
 from typing import Any
+from urllib.parse import urlparse, unquote
 from xml.etree import ElementTree as ET
 
 import feedparser
@@ -95,8 +96,22 @@ PROMO_PAGES = [
     {"program": "Livelo", "type_hint": "transferencias", "url": "https://www.livelo.com.br"},
 ]
 
+# Detector antecipado mais agressivo
+EARLY_DETECT_URLS = [
+    {"program": "Smiles", "type_hint": None, "url": "https://www.smiles.com.br/promocoes"},
+    {"program": "Smiles", "type_hint": "milheiro", "url": "https://www.smiles.com.br/clube-smiles"},
+    {"program": "Smiles", "type_hint": None, "url": "https://www.smiles.com.br/home"},
+    {"program": "LATAM Pass", "type_hint": None, "url": "https://latampass.latam.com"},
+    {"program": "TudoAzul", "type_hint": None, "url": "https://www.voeazul.com.br"},
+    {"program": "Livelo", "type_hint": None, "url": "https://www.livelo.com.br"},
+    {"program": "Livelo", "type_hint": "milheiro", "url": "https://www.livelo.com.br/clube"},
+    {"program": "Esfera", "type_hint": None, "url": "https://www.esfera.com.vc"},
+    {"program": "Esfera", "type_hint": "milheiro", "url": "https://www.esfera.com.vc/clube"},
+    {"program": "ALL Accor", "type_hint": None, "url": "https://all.accor.com"},
+]
+
 # =========================================================
-# LIMPEZA DE TEXTO
+# LIMPEZA / FILTROS
 # =========================================================
 
 NOISE_FRAGMENTS = [
@@ -180,6 +195,26 @@ TRANSFER_REJECT_TERMS = [
     "american airlines flights",
     "mileage earnings",
     "tier bonuses",
+]
+
+ANTI_SPAM_TERMS = [
+    "radar ppv",
+    "resumo da semana",
+    "resumo do dia",
+    "resumo das promoções",
+    "última chamada",
+    "ultima chamada",
+    "última edição",
+    "ultima edição",
+    "review",
+    "guia",
+    "dicas",
+    "vale a pena",
+    "como funciona",
+    "melhores cartões",
+    "melhores cartoes",
+    "promoções que terminam hoje",
+    "promocoes que terminam hoje",
 ]
 
 PROGRAMAS = [
@@ -301,28 +336,6 @@ def sentence_crop(texto: str, max_len: int = 170) -> str:
     return cut + "..."
 
 
-def build_short_title(title: str, summary: str = "", max_len: int = 140) -> str:
-    title = clean_text(title)
-    summary = clean_text(summary)
-    title = strip_noise_phrases(title)
-    summary = strip_noise_phrases(summary)
-    base = title if title else summary
-
-    for pat in [
-        r"\bsaiba mais\b",
-        r"\bpublicidade\b",
-        r"\bdeixe um coment[aá]rio\b",
-        r"\bsegue valendo!?+\b",
-        r"\bprorrogou!?+\b",
-        r"\b\d+\s+horas?\s+atr[aá]s\b",
-        r"\b\d{1,2}\s+de\s+[a-zçãé]+\s+de\s+\d{4}\b",
-    ]:
-        base = re.sub(pat, " ", base, flags=re.I)
-
-    base = normalize_spaces(base)
-    return sentence_crop(base, max_len=max_len)
-
-
 def titulo_normalizado(titulo: str) -> str:
     t = clean_text(titulo).lower()
     t = re.sub(r"[^a-z0-9 ]", "", t)
@@ -340,6 +353,62 @@ def is_strict_transfer_post(texto: str) -> bool:
     has_accept = any(term in t for term in TRANSFER_ACCEPT_TERMS)
     has_reject = any(term in t for term in TRANSFER_REJECT_TERMS)
     return has_accept and not has_reject
+
+
+def is_spammy_generic_post(title: str, summary: str) -> bool:
+    texto = clean_text(f"{title} {summary}").lower()
+
+    if any(term in texto for term in ANTI_SPAM_TERMS):
+        if not re.search(r"(\d{2,3})\s*%|r\$\s*\d+[,.]?\d*|\b\d{3,6}\b", texto):
+            return True
+
+    return False
+
+
+def title_from_url(url: str) -> str:
+    try:
+        parsed = urlparse(url)
+        slug = parsed.path.strip("/").split("/")[-1]
+        slug = unquote(slug)
+        slug = slug.replace("-", " ").replace("_", " ")
+        slug = re.sub(r"\s+", " ", slug).strip()
+        if not slug:
+            return ""
+        return slug[:140]
+    except Exception:
+        return ""
+
+
+def build_short_title(title: str, summary: str = "", link: str = "", max_len: int = 140) -> str:
+    title = clean_text(title)
+    summary = clean_text(summary)
+
+    if title.startswith("http://") or title.startswith("https://"):
+        title = title_from_url(title)
+
+    title = strip_noise_phrases(title)
+    summary = strip_noise_phrases(summary)
+
+    if summary.startswith("http://") or summary.startswith("https://"):
+        summary = title_from_url(summary)
+
+    base = title if title else summary
+    if not base and link:
+        base = title_from_url(link)
+
+    for pat in [
+        r"\bsaiba mais\b",
+        r"\bpublicidade\b",
+        r"\bdeixe um coment[aá]rio\b",
+        r"\bsegue valendo!?+\b",
+        r"\bprorrogou!?+\b",
+        r"\b\d+\s+horas?\s+atr[aá]s\b",
+        r"\b\d{1,2}\s+de\s+[a-zçãé]+\s+de\s+\d{4}\b",
+    ]:
+        base = re.sub(pat, " ", base, flags=re.I)
+
+    base = normalize_spaces(base)
+    return sentence_crop(base, max_len=max_len)
 
 # =========================================================
 # STORAGE
@@ -539,14 +608,14 @@ def parse_html_text(html_text: str) -> str:
         if txt:
             parts.append(txt)
 
-    for tag in soup.find_all(["p", "span", "div", "li"]):
+    for tag in soup.find_all(["p", "span", "div", "li", "a"]):
         txt = tag.get_text(" ", strip=True)
         if txt and len(txt) > 20:
             parts.append(txt)
-        if len(" ".join(parts)) > 3500:
+        if len(" ".join(parts)) > 5000:
             break
 
-    return clean_text(" ".join(parts))[:4000]
+    return clean_text(" ".join(parts))[:5000]
 
 
 def coletar_rss():
@@ -558,11 +627,18 @@ def coletar_rss():
             feed = feedparser.parse(url)
             entries = getattr(feed, "entries", [])
             for entry in entries[:25]:
+                title = clean_text(entry.get("title", "") or "")
+                summary = clean_text(entry.get("summary", "") or "")
+                link = entry.get("link", "") or ""
+
+                if is_spammy_generic_post(title, summary):
+                    continue
+
                 itens.append(
                     {
-                        "title": clean_text(entry.get("title", "") or ""),
-                        "link": entry.get("link", "") or "",
-                        "summary": clean_text(entry.get("summary", "") or ""),
+                        "title": title,
+                        "link": link,
+                        "summary": summary,
                         "source_url": url,
                         "source_kind": "rss",
                         "type_hint": None,
@@ -587,7 +663,7 @@ def coletar_paginas_oficiais():
             texto = parse_html_text(resp.text)
             itens.append(
                 {
-                    "title": texto,
+                    "title": texto[:220],
                     "link": str(resp.url),
                     "summary": texto,
                     "source_url": url,
@@ -636,7 +712,7 @@ def _interesting_url(url: str) -> bool:
         "promo", "promoco", "oferta", "offer", "bonus", "bônus",
         "clube", "milha", "mile", "points", "pontos", "passagem",
         "flight", "travel", "shopping", "turbo", "buy-points",
-        "comprar", "compra", "resgate",
+        "comprar", "compra", "resgate", "reativacao",
     ]
     return any(k in u for k in keywords)
 
@@ -653,15 +729,15 @@ def coletar_sitemaps():
             collected = []
 
             if any(u.endswith(".xml") for u in first_level):
-                for sitemap_url in first_level[:5]:
+                for sitemap_url in first_level[:8]:
                     try:
                         s_resp = safe_get(sitemap_url)
                         s_resp.raise_for_status()
-                        collected.extend(_parse_sitemap_xml(s_resp.text)[:20])
+                        collected.extend(_parse_sitemap_xml(s_resp.text)[:40])
                     except Exception:
                         continue
             else:
-                collected = first_level[:30]
+                collected = first_level[:50]
 
             filtered = []
             seen = set()
@@ -670,12 +746,13 @@ def coletar_sitemaps():
                     seen.add(url)
                     filtered.append(url)
 
-            for url in filtered[:20]:
+            for url in filtered[:25]:
+                slug_title = title_from_url(url)
                 itens.append(
                     {
-                        "title": url,
+                        "title": slug_title if slug_title else url,
                         "link": url,
-                        "summary": url,
+                        "summary": slug_title if slug_title else url,
                         "source_url": fonte["url"],
                         "source_kind": "sitemap",
                         "type_hint": None,
@@ -699,7 +776,7 @@ def coletar_milheiro_publico():
             texto = parse_html_text(resp.text)
             itens.append(
                 {
-                    "title": texto,
+                    "title": texto[:220],
                     "link": str(resp.url),
                     "summary": texto,
                     "source_url": fonte["url"],
@@ -740,6 +817,57 @@ def coletar_paginas_promocionais():
     return itens, falhas
 
 
+def coletar_detector_antecipado():
+    itens = []
+    falhas = {}
+
+    for fonte in EARLY_DETECT_URLS:
+        url = fonte["url"]
+        try:
+            resp = safe_get(url)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, "html.parser")
+
+            candidates = []
+
+            if soup.title and soup.title.get_text(strip=True):
+                candidates.append(soup.title.get_text(" ", strip=True))
+
+            for tag in soup.find_all(["a", "h1", "h2", "h3", "span", "div", "li"]):
+                txt = tag.get_text(" ", strip=True)
+                href = ""
+                if tag.name == "a":
+                    href = tag.get("href", "") or ""
+
+                if txt and len(txt) > 12:
+                    candidates.append(txt)
+
+                if href and _interesting_url(href):
+                    candidates.append(title_from_url(href))
+
+                if len(candidates) > 120:
+                    break
+
+            merged = " ".join([c for c in candidates if c]).strip()
+            merged = clean_text(merged)[:5000]
+
+            itens.append(
+                {
+                    "title": merged[:220],
+                    "link": str(resp.url),
+                    "summary": merged,
+                    "source_url": url,
+                    "source_kind": "early_detect",
+                    "type_hint": fonte.get("type_hint"),
+                    "program_hint": fonte.get("program"),
+                }
+            )
+        except Exception as e:
+            falhas[url] = str(e)
+
+    return itens, falhas
+
+
 def coletar_todas_fontes():
     itens = []
     falhas = {}
@@ -750,6 +878,7 @@ def coletar_todas_fontes():
         coletar_sitemaps,
         coletar_milheiro_publico,
         coletar_paginas_promocionais,
+        coletar_detector_antecipado,
     ]:
         c_itens, c_falhas = collector()
         itens.extend(c_itens)
@@ -783,6 +912,10 @@ def _detect_program(texto: str, program_hint=None):
         "krisflyer": "KrisFlyer",
         "amex": "Amex",
         "american express": "Amex",
+        "british airways": "British Airways",
+        "avios": "Iberia",
+        "iberia": "Iberia",
+        "tap": "TAP",
     }
 
     for k, v in mapping.items():
@@ -1003,15 +1136,22 @@ def transformar_em_promocoes(itens: list) -> list:
         link = item.get("link", "")
         type_hint = item.get("type_hint")
         program_hint = item.get("program_hint")
+        source_kind = item.get("source_kind", "rss")
+
+        if is_spammy_generic_post(titulo_bruto, summary):
+            continue
 
         texto_base = f"{titulo_bruto} {summary}".strip()
         tipo = _detect_type(texto_base, type_hint=type_hint)
         if not tipo:
             continue
 
-        titulo_curto = build_short_title(titulo_bruto, summary, max_len=125)
+        titulo_curto = build_short_title(titulo_bruto, summary, link=link, max_len=125)
         if not titulo_curto:
             continue
+
+        if titulo_curto.startswith("http://") or titulo_curto.startswith("https://"):
+            titulo_curto = title_from_url(titulo_curto)
 
         program = _detect_program(texto_base, program_hint=program_hint)
 
@@ -1039,6 +1179,10 @@ def transformar_em_promocoes(itens: list) -> list:
         prioridade = _alerta_prioridade(tipo, score, bonus, milheiro, sweet_spot)
         ranking_score = round(score * _peso_categoria(tipo), 2)
 
+        # detector antecipado ganha um pequeno peso extra
+        if source_kind in {"sitemap", "official", "promo_page", "early_detect"}:
+            ranking_score = round(ranking_score + 0.15, 2)
+
         promo = {
             "id": _build_id(titulo_curto, link, tipo, program or "", bonus),
             "title": titulo_curto,
@@ -1054,7 +1198,7 @@ def transformar_em_promocoes(itens: list) -> list:
             "sweet_spot": sweet_spot,
             "alert_priority": prioridade,
             "ranking_score": ranking_score,
-            "source_kind": item.get("source_kind", "rss"),
+            "source_kind": source_kind,
         }
         promocoes.append(promo)
 
@@ -1095,6 +1239,7 @@ def total_fontes_monitoradas() -> int:
         + len(SITEMAP_SOURCES)
         + len(PUBLIC_MILEAGE_SOURCES)
         + len(PROMO_PAGES)
+        + len(EARLY_DETECT_URLS)
     )
 
 
@@ -1134,7 +1279,7 @@ def executar_varredura():
                     criticos += 1
 
         historico = deduplicar(historico)
-        STATE.promocoes = historico[-1200:] if len(historico) > 1200 else historico
+        STATE.promocoes = historico[-1500:] if len(historico) > 1500 else historico
         STATE.metricas["alertas_criticos"] = criticos
         STATE.metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         STATE.metricas["ultimo_erro"] = "nenhum"
@@ -1173,6 +1318,8 @@ def get_promocoes_por_tipo(tipo: str, limit: int = 5) -> list:
             titulo = clean_text(p.get("title", "")).lower()
             if any(term in titulo for term in bloqueios):
                 continue
+            if titulo.startswith("http://") or titulo.startswith("https://"):
+                continue
             filtradas.append(p)
         promos = filtradas
 
@@ -1184,9 +1331,19 @@ def get_promocoes_por_tipo(tipo: str, limit: int = 5) -> list:
 def get_ranking(limit: int = 5) -> list:
     snapshot = get_state_snapshot()
     promos = [p for p in snapshot["promocoes"] if p.get("program") != "Programa não identificado"]
-    promos = deduplicar(promos)
-    promos = sorted(promos, key=lambda p: (p.get("ranking_score", 0), p.get("score", 0)), reverse=True)
-    return promos[:limit]
+
+    filtradas = []
+    for p in promos:
+        titulo = clean_text(p.get("title", "")).lower()
+        if any(term in titulo for term in ANTI_SPAM_TERMS):
+            continue
+        if titulo.startswith("http://") or titulo.startswith("https://"):
+            continue
+        filtradas.append(p)
+
+    filtradas = deduplicar(filtradas)
+    filtradas = sorted(filtradas, key=lambda p: (p.get("ranking_score", 0), p.get("score", 0)), reverse=True)
+    return filtradas[:limit]
 
 # =========================================================
 # TELEGRAM TEXT
@@ -1221,6 +1378,7 @@ def build_status_text(interval_seconds: int) -> str:
         "✓ programas oficiais\n"
         "✓ sitemap e páginas internas\n"
         "✓ páginas promocionais\n"
+        "✓ detector antecipado de promoções\n"
         "✓ transferências\n"
         "✓ milheiro barato\n"
         "✓ passagens baratas\n"
@@ -1269,6 +1427,7 @@ def format_card(promo: dict) -> str:
         texto += f"Milheiro detectado: R$ {promo.get('milheiro_detectado'):.2f}\n"
     if promo.get("sweet_spot"):
         texto += "Sweet spot detectado: Sim\n"
+    texto += f"Fonte: {promo.get('source_kind', 'rss')}\n"
     texto += f"Fontes confirmadas: {promo.get('fontes_confirmadas', 1)}\n"
     texto += f"Score: {promo.get('score', 0)}\n"
     texto += f"{promo.get('classification', '🟢 PROMOÇÃO BOA')}\n\n"
@@ -1461,7 +1620,7 @@ async def post_init(application):
         _scheduled_scan,
         "interval",
         seconds=RADAR_INTERVAL_SECONDS,
-        next_run_time=datetime.now(),  # roda imediatamente ao subir
+        next_run_time=datetime.now(),
         id="radar_scan",
         replace_existing=True,
     )
