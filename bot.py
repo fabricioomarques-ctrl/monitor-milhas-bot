@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import feedparser
+import requests
+from bs4 import BeautifulSoup
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -41,7 +43,7 @@ if not CANAL_ID:
     raise RuntimeError("Variável CANAL_ID não configurada.")
 
 # =========================================================
-# FONTES
+# FONTES RSS
 # =========================================================
 
 FONTES_RSS = [
@@ -49,6 +51,41 @@ FONTES_RSS = [
     "https://pontospravoar.com/feed",
     "https://www.melhoresdestinos.com.br/feed",
     "https://aeroin.net/feed",
+]
+
+# =========================================================
+# PÁGINAS OFICIAIS MONITORADAS
+# =========================================================
+
+FONTES_OFICIAIS = [
+    # Smiles
+    {"program": "Smiles", "type_hint": "milheiro", "url": "https://www.smiles.com.br/home"},
+    {"program": "Smiles", "type_hint": "milheiro", "url": "https://www.smiles.com.br/clube-smiles/"},
+    {"program": "Smiles", "type_hint": "milheiro", "url": "https://www.smiles.com.br/clube-smiles/super-oferta"},
+    {"program": "Smiles", "type_hint": "transferencias", "url": "https://www.smiles.com.br/portal/promocoes/bancos-aniversario-passageiro-de-primeira-2025"},
+    {"program": "Smiles", "type_hint": "transferencias", "url": "https://www.smiles.com.br/portal/clube-smiles-day/bancos-ate-90-pc-bonus"},
+    {"program": "Smiles", "type_hint": "transferencias", "url": "https://www.smiles.com.br/portal/promocoes/bancos-aniversario-gol-2026"},
+    # LATAM Pass
+    {"program": "LATAM Pass", "type_hint": "passagens", "url": "https://latampass.com/"},
+    {"program": "LATAM Pass", "type_hint": "milheiro", "url": "https://latampass.com/facilidades/compra-milhas/lp?pt=pp"},
+    # Livelo
+    {"program": "Livelo", "type_hint": "transferencias", "url": "https://www.livelo.com.br/"},
+    {"program": "Livelo", "type_hint": "milheiro", "url": "https://www.livelo.com.br/clube"},
+    {"program": "Livelo", "type_hint": "milheiro", "url": "https://www.livelo.com.br/compra-de-pontos/produto/LIVCompraDePontos"},
+    {"program": "Livelo", "type_hint": "passagens", "url": "https://www.livelo.com.br/viagens/passagens"},
+    # Esfera
+    {"program": "Esfera", "type_hint": "transferencias", "url": "https://www.esfera.com.vc/"},
+    {"program": "Esfera", "type_hint": "milheiro", "url": "https://www.esfera.com.vc/clube"},
+    {"program": "Esfera", "type_hint": "milheiro", "url": "https://www.esfera.com.vc/p/compra-de-pontos/e000100033"},
+    # Azul / TudoAzul
+    {"program": "TudoAzul", "type_hint": "passagens", "url": "https://www.voeazul.com.br/br/pt/ofertas/passagens"},
+    {"program": "TudoAzul", "type_hint": "milheiro", "url": "https://www.voeazul.com.br/br/pt/programa-fidelidade/clube-azul"},
+    {"program": "TudoAzul", "type_hint": "milheiro", "url": "https://www.voeazul.com.br/br/pt/ofertas/adesao-clube"},
+    {"program": "TudoAzul", "type_hint": "milheiro", "url": "https://www.voeazul.com.br/br/pt/ofertas/adesao-clube-relampago"},
+    {"program": "TudoAzul", "type_hint": "passagens", "url": "https://www.voeazul.com.br/br/pt/ofertas/facilidades"},
+    {"program": "TudoAzul", "type_hint": "passagens", "url": "https://www.voeazul.com.br/br/pt/ofertas/mes-do-consumidor"},
+    # Internacionais
+    {"program": "Iberia", "type_hint": "passagens", "url": "https://www.iberia.com/br/voos-baratos/"},
 ]
 
 # =========================================================
@@ -60,7 +97,6 @@ def _ensure_json_file(path: str, default: Any) -> None:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(default, f, ensure_ascii=False, indent=2)
 
-
 def _load_json(path: str, default: Any) -> Any:
     _ensure_json_file(path, default)
     try:
@@ -69,22 +105,18 @@ def _load_json(path: str, default: Any) -> Any:
     except Exception:
         return default
 
-
 def _save_json(path: str, data: Any) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-
 
 def carregar_promocoes() -> list:
     data = _load_json(PROMOCOES_FILE, [])
     return data if isinstance(data, list) else []
 
-
 def salvar_promocoes(promocoes: list) -> None:
     if not isinstance(promocoes, list):
         promocoes = []
     _save_json(PROMOCOES_FILE, promocoes)
-
 
 def carregar_metricas() -> dict:
     data = _load_json(
@@ -100,7 +132,6 @@ def carregar_metricas() -> dict:
         },
     )
     return data if isinstance(data, dict) else {}
-
 
 def salvar_metricas(metricas: dict) -> None:
     if not isinstance(metricas, dict):
@@ -132,10 +163,8 @@ def _parse_data(valor):
 
     return None
 
-
 def _norm_assinatura(texto):
     return " ".join(str(texto or "").lower().strip().split())
-
 
 def _assinatura(promo: dict) -> str:
     return "|".join(
@@ -146,7 +175,6 @@ def _assinatura(promo: dict) -> str:
             _norm_assinatura(promo.get("link")),
         ]
     )
-
 
 def deduplicar(promocoes: list) -> list:
     if not isinstance(promocoes, list):
@@ -178,24 +206,58 @@ def deduplicar(promocoes: list) -> list:
     return resultado
 
 # =========================================================
-# COLLECTORS
+# COLETA
 # =========================================================
 
-def coletar_todas_fontes():
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+    )
+}
+
+def _extrair_texto_html(html: str) -> str:
+    soup = BeautifulSoup(html, "html.parser")
+
+    partes = []
+
+    if soup.title and soup.title.get_text(strip=True):
+        partes.append(soup.title.get_text(" ", strip=True))
+
+    for tag in soup.find_all(["h1", "h2", "h3"]):
+        txt = tag.get_text(" ", strip=True)
+        if txt:
+            partes.append(txt)
+
+    for tag in soup.find_all(["p", "span", "div"]):
+        txt = tag.get_text(" ", strip=True)
+        if txt and len(txt) > 20:
+            partes.append(txt)
+        if len(" ".join(partes)) > 2500:
+            break
+
+    texto = " ".join(partes)
+    texto = re.sub(r"\s+", " ", texto).strip()
+    return texto[:3000]
+
+def coletar_rss():
     itens = []
     falhas = {}
 
     for url in FONTES_RSS:
         try:
             feed = feedparser.parse(url)
-
-            for entry in getattr(feed, "entries", []):
+            entries = getattr(feed, "entries", [])
+            for entry in entries[:20]:
                 itens.append(
                     {
                         "title": entry.get("title", "") or "",
                         "link": entry.get("link", "") or "",
                         "summary": entry.get("summary", "") or "",
                         "source_url": url,
+                        "source_kind": "rss",
+                        "type_hint": None,
+                        "program_hint": None,
                     }
                 )
         except Exception as e:
@@ -203,8 +265,47 @@ def coletar_todas_fontes():
 
     return itens, falhas
 
+def coletar_paginas_oficiais():
+    itens = []
+    falhas = {}
+
+    for fonte in FONTES_OFICIAIS:
+        url = fonte["url"]
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+            resp.raise_for_status()
+
+            texto = _extrair_texto_html(resp.text)
+
+            itens.append(
+                {
+                    "title": texto,
+                    "link": url,
+                    "summary": texto,
+                    "source_url": url,
+                    "source_kind": "official",
+                    "type_hint": fonte.get("type_hint"),
+                    "program_hint": fonte.get("program"),
+                }
+            )
+        except Exception as e:
+            falhas[url] = str(e)
+
+    return itens, falhas
+
+def coletar_todas_fontes():
+    itens_rss, falhas_rss = coletar_rss()
+    itens_oficiais, falhas_oficiais = coletar_paginas_oficiais()
+
+    itens = itens_rss + itens_oficiais
+    falhas = {}
+    falhas.update(falhas_rss)
+    falhas.update(falhas_oficiais)
+
+    return itens, falhas
+
 # =========================================================
-# DETECTORES / CLASSIFICAÇÃO
+# DETECÇÃO / SCORE
 # =========================================================
 
 PROGRAMAS = [
@@ -217,47 +318,29 @@ PROGRAMAS = [
     "esfera",
     "all accor",
     "krisflyer",
+    "iberia",
+    "tap",
+    "amex",
+    "american express",
 ]
 
 BANCOS = [
-    "itau",
-    "itaú",
-    "bradesco",
-    "santander",
-    "banco do brasil",
-    "bb",
-    "caixa",
-    "c6",
-    "inter",
-    "xp",
-    "btg",
-    "neon",
-    "nubank",
-    "sicoob",
-    "sicredi",
+    "itau", "itaú", "bradesco", "santander", "banco do brasil", "bb",
+    "caixa", "c6", "inter", "xp", "btg", "neon", "nubank", "sicoob", "sicredi",
+    "amex", "american express",
 ]
 
 RUIDO = [
-    "deixe um comentário",
-    "deixe um comentario",
-    "publicidade",
-    "saiba mais",
-    "10 horas atrás",
-    "horas atrás",
-    "vale a pena",
-    "review",
-    "guia",
-    "dicas",
+    "deixe um comentário", "deixe um comentario", "publicidade",
+    "saiba mais", "10 horas atrás", "horas atrás", "vale a pena",
+    "review", "guia", "dicas",
 ]
-
 
 def _clean_spaces(texto: str) -> str:
     return re.sub(r"\s+", " ", str(texto or "")).strip()
 
-
 def limpar_titulo(texto: str) -> str:
     t = str(texto or "").lower()
-
     t = re.sub(r"\b\d{1,2}\s+de\s+[a-zçãé]+\s+de\s+\d{4}\b", " ", t, flags=re.I)
     t = re.sub(r"\b\d+\s+horas?\s+atr[aá]s\b", " ", t, flags=re.I)
     t = re.sub(r"\bsaiba mais\b", " ", t, flags=re.I)
@@ -267,27 +350,26 @@ def limpar_titulo(texto: str) -> str:
     t = re.sub(r"\bprorrogou!?+\b", " ", t, flags=re.I)
     t = re.sub(r"[|]+", " ", t)
     t = _clean_spaces(t)
-
     return t
-
 
 def _norm(texto: str) -> str:
     return limpar_titulo(texto).lower()
-
 
 def _has_any(texto: str, palavras: list[str]) -> bool:
     texto = _norm(texto)
     return any(p in texto for p in palavras)
 
+def _detect_program(texto: str, program_hint: str | None = None) -> str:
+    if program_hint:
+        return program_hint
 
-def _detect_program(texto: str) -> str:
     t = _norm(texto)
 
     if "smiles" in t:
         return "Smiles"
     if "latam pass" in t or re.search(r"\blatam\b", t):
         return "LATAM Pass"
-    if "azul fidelidade" in t or "tudoazul" in t:
+    if "azul fidelidade" in t or "tudoazul" in t or "clube azul" in t:
         return "TudoAzul"
     if "livelo" in t:
         return "Livelo"
@@ -297,19 +379,39 @@ def _detect_program(texto: str) -> str:
         return "ALL Accor"
     if "krisflyer" in t:
         return "KrisFlyer"
+    if "iberia" in t or "avios" in t:
+        return "Iberia"
+    if "tap" in t:
+        return "TAP"
+    if "amex" in t or "american express" in t:
+        return "Amex"
     if "maxmilhas" in t or "milheiro" in t:
         return "Mercado de Milhas"
 
     return "Programa não identificado"
 
+def _detectar_bonus_alto(texto: str) -> int:
+    t = _norm(texto)
+    achados = re.findall(r"(\d{2,3})\s*%", t)
+    bonus = [int(x) for x in achados if x.isdigit()]
+    return max(bonus) if bonus else 0
 
-def _detect_type(texto: str):
+def _detect_type(texto: str, type_hint: str | None = None):
     t = _norm(texto)
 
     if _has_any(t, RUIDO):
         return None
 
+    if type_hint in {"milheiro", "transferencias", "passagens"}:
+        # se a página oficial tiver pista clara, usamos como prioridade
+        hinted = type_hint
+    else:
+        hinted = None
+
     if "milheiro" in t or "maxmilhas" in t:
+        return "milheiro"
+
+    if "compra de pontos" in t or "compra milhas" in t:
         return "milheiro"
 
     if (
@@ -319,28 +421,23 @@ def _detect_type(texto: str):
         return "transferencias"
 
     if (
-        ("milhas" in t or "pontos" in t)
+        ("milhas" in t or "pontos" in t or "avios" in t)
         and (
-            "passagens" in t
-            or "passagem" in t
-            or "trechos" in t
-            or "voos" in t
-            or "resgate" in t
-            or "ida e volta" in t
-            or "o trecho" in t
+            "passagens" in t or "passagem" in t or "trechos" in t or "voos" in t
+            or "resgate" in t or "ida e volta" in t or "o trecho" in t
+            or "voos baratos" in t
         )
         and _has_any(t, PROGRAMAS)
     ):
         return "passagens"
 
-    return None
-
+    return hinted
 
 def _score_transferencias(texto: str) -> float:
-    t = _norm(texto)
-    match = re.search(r"(\d{2,3})\s*%", t)
-    bonus = int(match.group(1)) if match else 0
+    bonus = _detectar_bonus_alto(texto)
 
+    if bonus >= 120:
+        return 9.8
     if bonus >= 100:
         return 9.5
     if bonus >= 90:
@@ -352,7 +449,6 @@ def _score_transferencias(texto: str) -> float:
     if bonus >= 60:
         return 7.5
     return 7.0
-
 
 def _score_passagens(texto: str) -> float:
     t = _norm(texto)
@@ -375,7 +471,6 @@ def _score_passagens(texto: str) -> float:
         return 8.0
     return 7.5
 
-
 def _score_milheiro(texto: str) -> float:
     t = _norm(texto)
     m = re.search(r"r\$\s*(\d+[,.]?\d*)", t)
@@ -387,14 +482,17 @@ def _score_milheiro(texto: str) -> float:
     except Exception:
         valor = 99.0
 
+    if valor <= 10:
+        return 10.0
     if valor <= 11:
         return 9.8
+    if valor <= 12:
+        return 9.4
     if valor <= 13:
         return 9.0
     if valor <= 15:
         return 8.0
     return 7.0
-
 
 def _classificacao(score: float) -> str:
     if score >= 9:
@@ -403,26 +501,28 @@ def _classificacao(score: float) -> str:
         return "🟡 PROMOÇÃO MUITO BOA"
     return "🟢 PROMOÇÃO BOA"
 
-
 def _build_id(titulo: str, link: str, tipo: str) -> str:
     base = f"{tipo}|{limpar_titulo(titulo)}|{str(link or '').strip()}"
     return hashlib.md5(base.encode("utf-8")).hexdigest()
-
 
 def transformar_em_promocoes(itens: list) -> list:
     promocoes = []
 
     for item in itens:
         titulo_bruto = item.get("title", "")
+        summary = item.get("summary", "")
+        texto_base = f"{titulo_bruto} {summary}"
         link = item.get("link", "")
+        type_hint = item.get("type_hint")
+        program_hint = item.get("program_hint")
 
-        titulo = limpar_titulo(titulo_bruto)
-        tipo = _detect_type(titulo)
+        titulo = limpar_titulo(texto_base)
+        tipo = _detect_type(titulo, type_hint=type_hint)
 
         if not tipo:
             continue
 
-        program = _detect_program(titulo)
+        program = _detect_program(titulo, program_hint=program_hint)
 
         if tipo == "passagens" and program == "Programa não identificado":
             continue
@@ -434,9 +534,11 @@ def transformar_em_promocoes(itens: list) -> list:
         else:
             score = _score_passagens(titulo)
 
+        bonus_detectado = _detectar_bonus_alto(titulo)
+
         promo = {
             "id": _build_id(titulo, link, tipo),
-            "title": titulo,
+            "title": titulo[:500],
             "link": link,
             "type": tipo,
             "program": program,
@@ -444,6 +546,8 @@ def transformar_em_promocoes(itens: list) -> list:
             "classification": _classificacao(score),
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "fontes_confirmadas": 1,
+            "bonus_detectado": bonus_detectado,
+            "source_kind": item.get("source_kind", "rss"),
         }
 
         promocoes.append(promo)
@@ -471,14 +575,12 @@ class RadarState:
         salvar_promocoes(self.promocoes)
         salvar_metricas(self.metricas)
 
-
 STATE = RadarState()
-
 
 def executar_varredura():
     itens, falhas = coletar_todas_fontes()
 
-    fontes_monitoradas = len(FONTES_RSS)
+    fontes_monitoradas = len(FONTES_RSS) + len(FONTES_OFICIAIS)
     fontes_com_erro = len(falhas)
     fontes_ativas = max(fontes_monitoradas - fontes_com_erro, 0)
 
@@ -500,13 +602,13 @@ def executar_varredura():
             historico.append(promo)
 
     historico = deduplicar(historico)
-    STATE.promocoes = historico[-400:] if len(historico) > 400 else historico
+    STATE.promocoes = historico[-800:] if len(historico) > 800 else historico
+    STATE.persistir()
 
     return {
         "novas": novas,
         "detectadas": len(promocoes_detectadas),
     }
-
 
 def get_state_snapshot():
     STATE.promocoes = carregar_promocoes()
@@ -517,13 +619,11 @@ def get_state_snapshot():
         "metricas": STATE.metricas,
     }
 
-
 def get_promocoes_por_tipo(tipo: str, limit: int = 5) -> list:
     snapshot = get_state_snapshot()
     promos = [p for p in snapshot["promocoes"] if p.get("type") == tipo]
     promos = sorted(promos, key=lambda p: p.get("score", 0), reverse=True)
     return promos[:limit]
-
 
 def get_ranking(limit: int = 5) -> list:
     snapshot = get_state_snapshot()
@@ -548,7 +648,8 @@ def build_status_text(interval_seconds: int) -> str:
         f"❌ Fontes com erro: {metricas.get('fontes_com_erro', 0)}\n\n"
         "Detectores ativos:\n"
         "✓ blogs\n"
-        "✓ programas\n"
+        "✓ programas oficiais\n"
+        "✓ transferências\n"
         "✓ milheiro\n"
         "✓ score automático\n"
         "✓ envio no canal\n\n"
@@ -556,7 +657,6 @@ def build_status_text(interval_seconds: int) -> str:
         f"🕒 Última execução: {metricas.get('ultima_execucao') or 'ainda não executado'}\n"
         f"⚠️ Último erro: {metricas.get('ultimo_erro', 'nenhum')}"
     )
-
 
 def build_debug_text() -> str:
     snapshot = get_state_snapshot()
@@ -590,7 +690,6 @@ def build_debug_text() -> str:
 SCAN_LOCK = asyncio.Lock()
 _APP = None
 
-
 def is_admin(update: Update) -> bool:
     if not ADMIN_IDS:
         return True
@@ -598,18 +697,18 @@ def is_admin(update: Update) -> bool:
         return False
     return update.effective_chat.id in ADMIN_IDS
 
-
 def format_card(promo: dict) -> str:
     texto = "💰 PROMOÇÃO CONFIRMADA\n\n"
     texto += f"Programa: {promo.get('program', 'Programa não identificado')}\n"
     texto += f"Título: {promo.get('title', '')}\n"
+    if promo.get("bonus_detectado", 0):
+        texto += f"Bônus detectado: {promo.get('bonus_detectado')}%\n"
     texto += f"Fontes confirmadas: {promo.get('fontes_confirmadas', 1)}\n"
     texto += f"Score: {promo.get('score', 0)}\n"
     texto += f"{promo.get('classification', '🟢 PROMOÇÃO BOA')}\n\n"
     texto += "Link:\n"
     texto += str(promo.get("link", ""))
     return texto
-
 
 def format_lista(titulo: str, promocoes: list) -> str:
     if not promocoes:
@@ -620,13 +719,14 @@ def format_lista(titulo: str, promocoes: list) -> str:
         partes.append("━━━━━━━━━━━━━━")
         partes.append(f"Programa: {promo.get('program', 'Programa não identificado')}")
         partes.append(f"Título: {promo.get('title', '')}")
+        if promo.get("bonus_detectado", 0):
+            partes.append(f"Bônus detectado: {promo.get('bonus_detectado')}%")
         partes.append(f"Score: {promo.get('score', 0)}")
         partes.append(f"{promo.get('classification', '🟢 PROMOÇÃO BOA')}")
         partes.append("Link:")
         partes.append(str(promo.get("link", "")))
     partes.append("━━━━━━━━━━━━━━")
     return "\n".join(partes)
-
 
 async def _run_scan() -> dict:
     async with SCAN_LOCK:
@@ -652,7 +752,6 @@ async def _run_scan() -> dict:
             "novas": len(novas),
         }
 
-
 async def _scheduled_scan():
     try:
         await _run_scan()
@@ -661,10 +760,9 @@ async def _scheduled_scan():
         STATE.metricas["ultimo_erro"] = str(e)
         STATE.persistir()
 
-
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "✈️ Radar de Milhas PRO\n\n"
+        "✈️ Radar de Milhas PRO MAX\n\n"
         "/menu\n"
         "/promocoes\n"
         "/transferencias\n"
@@ -673,7 +771,6 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/status",
         disable_web_page_preview=True,
     )
-
 
 async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -688,13 +785,11 @@ async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         disable_web_page_preview=True,
     )
 
-
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         build_status_text(RADAR_INTERVAL_SECONDS),
         disable_web_page_preview=True,
     )
-
 
 async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
@@ -703,14 +798,12 @@ async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(build_debug_text(), disable_web_page_preview=True)
 
-
 async def cmd_promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_ranking(limit=5)
     await update.message.reply_text(
         format_lista("🔥 Últimas promoções", promos),
         disable_web_page_preview=True,
     )
-
 
 async def cmd_transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_promocoes_por_tipo("transferencias", limit=5)
@@ -724,14 +817,12 @@ async def cmd_transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await update.message.reply_text(texto, disable_web_page_preview=True)
 
-
 async def cmd_passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_promocoes_por_tipo("passagens", limit=5)
     await update.message.reply_text(
         format_lista("✈️ Últimos alertas de passagens", promos),
         disable_web_page_preview=True,
     )
-
 
 async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_ranking(limit=MAX_RANKING if MAX_RANKING < 6 else 5)
@@ -754,7 +845,6 @@ async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     await update.message.reply_text("\n".join(linhas), disable_web_page_preview=True)
-
 
 async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
@@ -790,7 +880,6 @@ async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True,
         )
 
-
 async def post_init(application):
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
@@ -804,12 +893,10 @@ async def post_init(application):
     scheduler.start()
     application.bot_data["scheduler"] = scheduler
 
-
 async def post_shutdown(application):
     scheduler = application.bot_data.get("scheduler")
     if scheduler:
         scheduler.shutdown(wait=False)
-
 
 def main():
     global _APP
@@ -833,7 +920,6 @@ def main():
     _APP.add_handler(CommandHandler("testeradar", cmd_testeradar))
 
     _APP.run_polling(drop_pending_updates=False)
-
 
 if __name__ == "__main__":
     main()
