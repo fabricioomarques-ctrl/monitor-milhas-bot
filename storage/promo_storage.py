@@ -1,40 +1,58 @@
 import json
 import os
+from typing import Any
+
+from config import METRICS_FILE, PROMOCOES_FILE
 
 
-ARQUIVO_PROMOCOES = "promocoes_enviadas.json"
+def _ensure_json_file(path: str, default: Any) -> None:
+    if not os.path.exists(path):
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(default, f, ensure_ascii=False, indent=2)
 
 
-def _garantir_arquivo():
-    if not os.path.exists(ARQUIVO_PROMOCOES):
-        with open(ARQUIVO_PROMOCOES, "w", encoding="utf-8") as f:
-            json.dump([], f, ensure_ascii=False, indent=2)
-
-
-def carregar_promocoes():
-    _garantir_arquivo()
-
+def _load_json(path: str, default: Any) -> Any:
+    _ensure_json_file(path, default)
     try:
-        with open(ARQUIVO_PROMOCOES, "r", encoding="utf-8") as f:
-            dados = json.load(f)
-
-        if isinstance(dados, list):
-            return dados
-
-        return []
-
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
     except Exception:
-        return []
+        return default
 
 
-def salvar_promocoes(promocoes):
-    _garantir_arquivo()
+def _save_json(path: str, data: Any) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
+
+def carregar_promocoes() -> list:
+    data = _load_json(PROMOCOES_FILE, [])
+    return data if isinstance(data, list) else []
+
+
+def salvar_promocoes(promocoes: list) -> None:
     if not isinstance(promocoes, list):
         promocoes = []
+    _save_json(PROMOCOES_FILE, promocoes)
 
-    try:
-        with open(ARQUIVO_PROMOCOES, "w", encoding="utf-8") as f:
-            json.dump(promocoes, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+
+def carregar_metricas() -> dict:
+    data = _load_json(
+        METRICS_FILE,
+        {
+            "fontes_monitoradas": 0,
+            "fontes_ativas": 0,
+            "fontes_com_erro": 0,
+            "ultimos_alertas_enviados": 0,
+            "ultima_execucao": None,
+            "ultimo_erro": "nenhum",
+            "falhas_fontes": {},
+        },
+    )
+    return data if isinstance(data, dict) else {}
+
+
+def salvar_metricas(metricas: dict) -> None:
+    if not isinstance(metricas, dict):
+        metricas = {}
+    _save_json(METRICS_FILE, metricas)
