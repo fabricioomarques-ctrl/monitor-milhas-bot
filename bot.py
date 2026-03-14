@@ -65,11 +65,6 @@ FONTES_OFICIAIS = [
 
     # LATAM Pass
     {"program": "LATAM Pass", "type_hint": "passagens", "url": "https://latampass.latam.com/"},
-    {"program": "LATAM Pass", "type_hint": "milheiro", "url": "https://latampass.latam.com/pt_br/comprar-milhas.html"},
-
-    # TudoAzul
-    {"program": "TudoAzul", "type_hint": "passagens", "url": "https://www.voeazul.com.br/br/pt/ofertas"},
-    {"program": "TudoAzul", "type_hint": "milheiro", "url": "https://www.voeazul.com.br/br/pt/programa-fidelidade/clube-azul"},
 
     # Livelo
     {"program": "Livelo", "type_hint": "transferencias", "url": "https://www.livelo.com.br/"},
@@ -78,12 +73,6 @@ FONTES_OFICIAIS = [
     # Esfera
     {"program": "Esfera", "type_hint": "transferencias", "url": "https://www.esfera.com.vc/"},
     {"program": "Esfera", "type_hint": "milheiro", "url": "https://www.esfera.com.vc/clube"},
-
-    # ALL Accor
-    {"program": "ALL Accor", "type_hint": "transferencias", "url": "https://all.accor.com/loyalty-program/index.pt.shtml"},
-
-    # Iberia
-    {"program": "Iberia", "type_hint": "passagens", "url": "https://www.iberia.com/br/ofertas/"},
 ]
 
 # =========================================================
