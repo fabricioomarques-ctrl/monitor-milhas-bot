@@ -5,20 +5,47 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-from config import TELEGRAM_TOKEN, CANAL_ID
-from engine.radar_engine import executar_radar, STATE
-from dashboard.status_builder import build_status_text, build_debug_text
+from config import ADMIN_IDS, CANAL_ID, RADAR_INTERVAL_SECONDS, TELEGRAM_TOKEN
+from dashboard.status_builder import build_debug_text, build_status_text
+from engine.radar_engine import (
+    STATE,
+    build_passagens_text,
+    build_promocoes_text,
+    build_ranking_text,
+    build_transferencias_text,
+    run_radar,
+)
+
+SCAN_LOCK = asyncio.Lock()
 
 
-RADAR_INTERVAL = 3600
+def is_admin(update: Update) -> bool:
+    if not update.effective_chat:
+        return False
+    return update.effective_chat.id in ADMIN_IDS
 
 
-def is_admin(update: Update):
-    return True
+async def deny_admin(update: Update):
+    await update.message.reply_text("⛔ Comando disponível apenas para o administrador.")
+
+
+async def _run_scan_safely(bot) -> dict:
+    if SCAN_LOCK.locked():
+        return {
+            "analisadas": 0,
+            "novas_enviadas": 0,
+            "erro": "varredura já em andamento",
+        }
+
+    async with SCAN_LOCK:
+        return await run_radar(bot)
+
+
+async def _scheduled_scan(bot):
+    await _run_scan_safely(bot)
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     texto = (
         "✈️ Radar de Milhas PRO\n\n"
         "/menu\n"
@@ -28,12 +55,10 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/ranking\n"
         "/status"
     )
-
     await update.message.reply_text(texto, disable_web_page_preview=True)
 
 
 async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     texto = (
         "📡 MENU\n\n"
         "/promocoes\n"
@@ -44,162 +69,99 @@ async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/testeradar\n"
         "/debug"
     )
-
     await update.message.reply_text(texto, disable_web_page_preview=True)
 
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    texto = build_status_text(RADAR_INTERVAL)
-
+    # /status precisa responder sempre, sem depender do scan terminar
+    texto = build_status_text(RADAR_INTERVAL_SECONDS)
     await update.message.reply_text(texto, disable_web_page_preview=True)
 
 
 async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update):
+        await deny_admin(update)
+        return
 
     texto = build_debug_text()
-
     await update.message.reply_text(texto, disable_web_page_preview=True)
 
 
 async def cmd_promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    promos = STATE.promocoes[:5]
-
-    if not promos:
-
-        await update.message.reply_text(
-            "🔥 Últimas promoções\n\nNenhuma promoção registrada ainda.",
-            disable_web_page_preview=True,
-        )
-
-        return
-
-    texto = "🔥 Últimas promoções\n\n"
-
-    for p in promos:
-
-        texto += f"{p['title']}\nScore {p['score']}\n\n"
-
-    await update.message.reply_text(texto, disable_web_page_preview=True)
-
-
-async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    promos = sorted(STATE.promocoes, key=lambda x: x["score"], reverse=True)[:5]
-
-    if not promos:
-
-        await update.message.reply_text(
-            "🏆 Ranking promoções\n\nNenhuma promoção registrada ainda.",
-            disable_web_page_preview=True,
-        )
-
-        return
-
-    texto = "🏆 Ranking promoções\n\n"
-
-    for i, p in enumerate(promos, start=1):
-
-        texto += f"{i}. {p['title']} | score {p['score']}\n"
-
-    await update.message.reply_text(texto, disable_web_page_preview=True)
-
-
-async def cmd_passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    promos = [p for p in STATE.promocoes if p["type"] == "passagens"][:5]
-
-    if not promos:
-
-        await update.message.reply_text(
-            "✈️ Últimos alertas de passagens\n\nNenhuma promoção registrada ainda.",
-            disable_web_page_preview=True,
-        )
-
-        return
-
-    texto = "✈️ Últimos alertas de passagens\n\n"
-
-    for p in promos:
-
-        texto += f"{p['title']}\nScore {p['score']}\n\n"
-
+    texto = build_promocoes_text()
     await update.message.reply_text(texto, disable_web_page_preview=True)
 
 
 async def cmd_transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = build_transferencias_text()
+    await update.message.reply_text(texto, disable_web_page_preview=True)
 
-    promos = [p for p in STATE.promocoes if p["type"] == "transferencias"][:5]
 
-    if not promos:
+async def cmd_passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = build_passagens_text()
+    await update.message.reply_text(texto, disable_web_page_preview=True)
 
-        await update.message.reply_text(
-            "💳 Promoções de transferências de pontos monitoradas\n\n"
-            "• Livelo\n"
-            "• LATAM Pass\n"
-            "• Smiles\n"
-            "• TudoAzul\n\n"
-            "Use /promocoes para ver ofertas atuais.",
-            disable_web_page_preview=True,
-        )
 
-        return
-
-    texto = "💳 Promoções de transferências\n\n"
-
-    for p in promos:
-
-        texto += f"{p['title']}\nScore {p['score']}\n\n"
-
+async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    texto = build_ranking_text()
     await update.message.reply_text(texto, disable_web_page_preview=True)
 
 
 async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update):
+        await deny_admin(update)
+        return
 
-    await update.message.reply_text("🧪 Teste manual do radar iniciado...")
-
-    novas = await executar_radar(context.bot)
+    if SCAN_LOCK.locked():
+        await update.message.reply_text(
+            "⏳ Já existe uma varredura em andamento. Aguarde terminar e tente novamente.",
+            disable_web_page_preview=True,
+        )
+        return
 
     await update.message.reply_text(
-        f"✅ Radar executado\n\nNovas promoções enviadas: {novas}"
+        "🧪 Teste manual do radar iniciado...",
+        disable_web_page_preview=True,
     )
 
+    result = await _run_scan_safely(context.bot)
 
-async def scheduled_scan(bot):
-
-    await executar_radar(bot)
+    texto = (
+        "✅ Teste manual concluído.\n\n"
+        f"Fontes monitoradas: {STATE.metrics.get('fontes_monitoradas', 0)}\n"
+        f"Fontes ativas: {STATE.metrics.get('fontes_ativas', 0)}\n"
+        f"Fontes com erro: {STATE.metrics.get('fontes_com_erro', 0)}\n"
+        f"Promoções analisadas: {result['analisadas']}\n"
+        f"Novas promoções enviadas: {result['novas_enviadas']}\n"
+        f"Último erro: {result['erro']}"
+    )
+    await update.message.reply_text(texto, disable_web_page_preview=True)
 
 
 async def post_init(application):
-
     application.bot._radar_channel_id = CANAL_ID
 
     scheduler = AsyncIOScheduler()
-
     scheduler.add_job(
-        scheduled_scan,
+        _scheduled_scan,
         "interval",
-        seconds=RADAR_INTERVAL,
+        seconds=RADAR_INTERVAL_SECONDS,
         args=[application.bot],
-        next_run_time=datetime.now(),  # executa imediatamente
+        id="radar_scan",
+        replace_existing=True,
+        next_run_time=datetime.now(),  # roda logo ao iniciar
     )
-
     scheduler.start()
-
     application.bot_data["scheduler"] = scheduler
 
 
 async def post_shutdown(application):
-
     scheduler = application.bot_data.get("scheduler")
-
     if scheduler:
         scheduler.shutdown(wait=False)
 
 
 def main():
-
     app = (
         ApplicationBuilder()
         .token(TELEGRAM_TOKEN)
