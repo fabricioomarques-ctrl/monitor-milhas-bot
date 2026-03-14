@@ -277,6 +277,13 @@ RANKING_REJECT_TERMS = [
     "welcome offer",
     "signup",
     "sign up",
+    "benefícios exclusivos",
+    "beneficios exclusivos",
+    "tudo isso e outros benefícios",
+    "tudo isso e outros beneficios",
+    "clube livelo",
+    "benefícios do clube",
+    "beneficios do clube",
 ]
 
 EDITORIAL_GENERIC_TERMS = [
@@ -291,6 +298,11 @@ EDITORIAL_GENERIC_TERMS = [
     "edição do radar",
     "última chamada",
     "ultima chamada",
+    "sugestões de voos",
+    "sugestoes de voos",
+    "confira",
+    "veja trechos",
+    "alerta ppv",
 ]
 
 PROGRAMAS = [
@@ -419,6 +431,36 @@ def titulo_normalizado(titulo: str) -> str:
     return t.strip()
 
 
+def canonicalize_brand_names(texto: str) -> str:
+    if not texto:
+        return ""
+
+    subs = [
+        (r"\blatam pass\b", "LATAM Pass"),
+        (r"\blatam\b", "LATAM"),
+        (r"\btudoazul\b", "TudoAzul"),
+        (r"\bazul fidelidade\b", "Azul Fidelidade"),
+        (r"\bsmiles\b", "Smiles"),
+        (r"\blivelo\b", "Livelo"),
+        (r"\besfera\b", "Esfera"),
+        (r"\ball accor\b", "ALL Accor"),
+        (r"\baccor\b", "Accor"),
+        (r"\bkrisflyer\b", "KrisFlyer"),
+        (r"\bbritish airways\b", "British Airways"),
+        (r"\bflying blue\b", "Flying Blue"),
+        (r"\biberia\b", "Iberia"),
+        (r"\btap\b", "TAP"),
+        (r"\bamex\b", "Amex"),
+    ]
+
+    out = texto
+    for pat, repl in subs:
+        out = re.sub(pat, repl, out, flags=re.I)
+
+    out = re.sub(r"\s+", " ", out).strip()
+    return out
+
+
 def is_generic_transfer_post(texto: str) -> bool:
     t = clean_text(texto).lower()
     return any(term in t for term in GENERIC_TRANSFER_TERMS)
@@ -475,6 +517,7 @@ def cleanup_title_for_output(texto: str) -> str:
         texto = re.sub(padrao, "", texto, flags=re.I).strip()
 
     texto = re.sub(r"\s+", " ", texto).strip(" -:,.")
+    texto = canonicalize_brand_names(texto)
     return texto
 
 
@@ -507,12 +550,52 @@ def build_short_title(title: str, summary: str = "", link: str = "", max_len: in
         base = re.sub(pat, " ", base, flags=re.I)
 
     base = normalize_spaces(base)
+    base = canonicalize_brand_names(base)
     return sentence_crop(base, max_len=max_len)
 
 
 def is_editorial_generic(title: str, summary: str) -> bool:
     texto = clean_text(f"{title} {summary}").lower()
     return any(term in texto for term in EDITORIAL_GENERIC_TERMS)
+
+
+def is_commercial_noise_for_ranking(title: str, summary: str, link: str) -> bool:
+    texto = clean_text(f"{title} {summary}").lower()
+    link_l = clean_text(link).lower()
+
+    blocks = [
+        "clube livelo",
+        "ganhe pontos e aproveite benefícios",
+        "ganhe pontos e aproveite beneficios",
+        "benefícios exclusivos",
+        "beneficios exclusivos",
+        "tudo isso e outros benefícios",
+        "tudo isso e outros beneficios",
+        "criar conta",
+        "fazer login",
+        "login",
+        "boas-vindas",
+        "boas vindas",
+        "acelere seus benefícios",
+        "acelere seus beneficios",
+        "compre pontos",
+        "compra de pontos",
+        "assine",
+        "assinatura",
+        "signature",
+        "reativacao",
+        "reativação",
+        "clube",
+    ]
+
+    if any(b in texto for b in blocks):
+        if not re.search(r"(\d{2,3})\s*%|milheiro|r\$\s*\d+[,.]?\d*|3\.?\d{3}|4\.?\d{3}|5\.?\d{3}", texto):
+            return True
+
+    if any(x in link_l for x in ["login", "reativacao", "signature", "bonus-200"]):
+        return True
+
+    return False
 
 # =========================================================
 # STORAGE
@@ -1005,15 +1088,16 @@ def _detect_program(texto: str, program_hint=None):
     mapping = {
         "smiles": "Smiles",
         "clube smiles": "Smiles",
-        "latam": "LATAM Pass",
         "latam pass": "LATAM Pass",
-        "azul": "TudoAzul",
+        "latam": "LATAM Pass",
+        "azul fidelidade": "TudoAzul",
         "tudoazul": "TudoAzul",
         "clube azul": "TudoAzul",
+        "azul": "TudoAzul",
         "livelo": "Livelo",
         "esfera": "Esfera",
-        "accor": "ALL Accor",
         "all accor": "ALL Accor",
+        "accor": "ALL Accor",
         "krisflyer": "KrisFlyer",
         "amex": "Amex",
         "american express": "Amex",
@@ -1067,7 +1151,7 @@ def _detectar_sweet_spot(texto: str) -> bool:
     if any(k in t for k in ["executiva", "business", "primeira classe", "first class"]):
         if re.search(r"\b(3[0-9]|4[0-9]|5[0-9]|6[0-9]|7[0-9]|8[0-9])\.?\d{3}\b", t):
             return True
-    if any(k in t for k in ["miami", "orlando", "europa", "madrid", "lisboa", "paris", "roma", "nova york", "new york"]):
+    if any(k in t for k in ["miami", "orlando", "europa", "madrid", "lisboa", "paris", "roma", "nova york", "new york", "rio de janeiro"]):
         if re.search(r"\b(3|4|5|6|7|8|9)\d{3,4}\b", t):
             return True
     if any(k in t for k in ["off no resgate", "desconto no resgate", "25% off", "30% off"]):
@@ -1217,24 +1301,31 @@ def _peso_categoria(tipo: str) -> float:
 
 def _bonus_fonte(source_kind: str) -> float:
     if source_kind == "early_detect":
-        return 0.45
+        return 0.55
     if source_kind == "official":
-        return 0.35
+        return 0.40
     if source_kind == "promo_page":
-        return 0.30
+        return 0.34
     if source_kind == "sitemap":
-        return 0.22
+        return 0.24
     if source_kind == "marketplace":
         return 0.20
     return 0.0
 
 
 def _penalidade_editorial(title: str, summary: str, source_kind: str) -> float:
-    if source_kind != "rss":
-        return 0.0
-    if is_editorial_generic(title, summary):
-        return 0.35
-    return 0.0
+    title_l = clean_text(title).lower()
+    summary_l = clean_text(summary).lower()
+    texto = f"{title_l} {summary_l}"
+
+    penalty = 0.0
+    if source_kind == "rss" and is_editorial_generic(title, summary):
+        penalty += 0.60
+    if any(term in texto for term in ["confira", "encontramos oportunidades", "sugestões de voos", "sugestoes de voos"]):
+        penalty += 0.35
+    if any(term in texto for term in ["clube livelo", "benefícios exclusivos", "beneficios exclusivos"]):
+        penalty += 0.80
+    return penalty
 
 
 def _build_id(titulo: str, link: str, tipo: str, program: str = "", bonus: int = 0) -> str:
@@ -1321,7 +1412,7 @@ def transformar_em_promocoes(itens: list) -> list:
             "title": titulo_curto,
             "link": link,
             "type": tipo,
-            "program": program or "Programa não identificado",
+            "program": canonicalize_brand_names(program or "Programa não identificado"),
             "score": round(score, 1),
             "classification": _classificacao(score),
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1509,15 +1600,19 @@ def get_ranking(limit: int = 5) -> list:
 
     filtradas = []
     for p in promos:
-        titulo = clean_text(p.get("title", "")).lower()
-        resumo = clean_text(p.get("title", "")).lower()
+        titulo = clean_text(p.get("title", ""))
+        resumo = clean_text(p.get("title", ""))
         link = clean_text(p.get("link", "")).lower()
 
-        if any(term in titulo for term in RANKING_REJECT_TERMS):
+        titulo_l = titulo.lower()
+
+        if any(term in titulo_l for term in RANKING_REJECT_TERMS):
             continue
-        if titulo.startswith("http://") or titulo.startswith("https://"):
+        if titulo_l.startswith("http://") or titulo_l.startswith("https://"):
             continue
-        if any(term in link for term in ["reativacao", "bonus-200", "signature"]):
+        if any(term in link for term in ["reativacao", "bonus-200", "signature", "login"]):
+            continue
+        if is_commercial_noise_for_ranking(titulo, resumo, link):
             continue
 
         if p.get("type") == "transferencias" and int(p.get("bonus_detectado") or 0) < 40:
@@ -1525,6 +1620,12 @@ def get_ranking(limit: int = 5) -> list:
 
         if p.get("type") == "milheiro" and p.get("milheiro_detectado") is None:
             continue
+
+        if p.get("type") == "passagens":
+            if any(term in titulo_l for term in ["confira", "sugestões de voos", "sugestoes de voos"]):
+                # aceita só se for muito forte
+                if float(p.get("score", 0)) < 9.0:
+                    continue
 
         filtradas.append(p)
 
