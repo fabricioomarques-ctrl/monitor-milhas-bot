@@ -98,10 +98,9 @@ PUBLIC_MILEAGE_SOURCES = [
 
 PROMO_PAGES = [
     {"program": "Smiles", "type_hint": "transferencias", "url": "https://www.smiles.com.br/promocoes"},
-    {"program": "LATAM Pass", "type_hint": "passagens", "url": "https://latampass.latam.com/pt_br/promocoes"},
-    {"program": "TudoAzul", "type_hint": "passagens", "url": "https://www.voeazul.com.br/br/pt/azul-fidelidade/promocoes"},
-    {"program": "Livelo", "type_hint": "transferencias", "url": "https://www.livelo.com.br/promocoes"},
-    {"program": "Esfera", "type_hint": "transferencias", "url": "https://www.esfera.com.vc/promocoes"},
+    {"program": "TudoAzul", "type_hint": "passagens", "url": "https://www.voeazul.com.br/"},
+    {"program": "Esfera", "type_hint": "transferencias", "url": "https://www.esfera.com.vc/"},
+    {"program": "Livelo", "type_hint": "transferencias", "url": "https://www.livelo.com.br/"},
 ]
 
 # =========================================================
@@ -170,6 +169,18 @@ TRANSFER_REJECT_TERMS = [
     "campanha de acumulo",
     "acúmulo comum",
     "acumulo comum",
+    "credit card",
+    "card",
+    "welcome offer",
+    "sign up",
+    "signup",
+    "apply now",
+    "marriott card",
+    "bonvoy card",
+    "brilliant card",
+    "amex card",
+    "cartão",
+    "cartao",
 ]
 
 PROGRAMAS = [
@@ -235,13 +246,13 @@ HEADERS = {
     )
 }
 
+
 def clean_text(texto: str) -> str:
     if not texto:
         return ""
 
     texto = str(texto)
 
-    # tenta corrigir textos vindos com encoding ruim
     try:
         texto = texto.encode("latin1").decode("utf-8")
     except Exception:
@@ -255,19 +266,17 @@ def clean_text(texto: str) -> str:
     texto = re.sub(r'<[^>]+>', ' ', texto)
     texto = re.sub(r'\s+', ' ', texto).strip()
 
-    # remove sobras típicas de encoding quebrado
-    lixo = [
-        "â€¢", "â€", "â€™", "â€œ", "â€\x9d", "Ã", "ð", "Â", "â",
-        "¤", "�"
-    ]
+    lixo = ["â€¢", "â€", "â€™", "â€œ", "â€\x9d", "Ã", "ð", "Â", "â", "¤", "�"]
     for item in lixo:
         texto = texto.replace(item, " ")
 
     texto = re.sub(r'\s+', ' ', texto).strip()
     return texto
 
+
 def normalize_spaces(texto: str) -> str:
     return re.sub(r"\s+", " ", str(texto or "")).strip()
+
 
 def strip_noise_phrases(texto: str) -> str:
     t = texto
@@ -278,6 +287,7 @@ def strip_noise_phrases(texto: str) -> str:
             t = t[:idx].strip()
             low = t.lower()
     return normalize_spaces(t)
+
 
 def sentence_crop(texto: str, max_len: int = 170) -> str:
     texto = normalize_spaces(texto)
@@ -292,6 +302,7 @@ def sentence_crop(texto: str, max_len: int = 170) -> str:
         return texto[:cut + 1].strip()
     cut = texto[:max_len].rsplit(" ", 1)[0].strip()
     return cut + "..."
+
 
 def build_short_title(title: str, summary: str = "", max_len: int = 140) -> str:
     title = clean_text(title)
@@ -312,9 +323,11 @@ def build_short_title(title: str, summary: str = "", max_len: int = 140) -> str:
     base = normalize_spaces(base)
     return sentence_crop(base, max_len=max_len)
 
+
 def is_generic_transfer_post(texto: str) -> bool:
     t = clean_text(texto).lower()
     return any(term in t for term in GENERIC_TRANSFER_TERMS)
+
 
 def is_strict_transfer_post(texto: str) -> bool:
     t = clean_text(texto).lower()
@@ -322,20 +335,23 @@ def is_strict_transfer_post(texto: str) -> bool:
     has_reject = any(term in t for term in TRANSFER_REJECT_TERMS)
     return has_accept and not has_reject
 
+
 def titulo_normalizado(titulo: str) -> str:
     t = clean_text(titulo).lower()
-    t = re.sub(r'[^a-z0-9 ]', '', t)
-    t = re.sub(r'\s+', ' ', t)
+    t = re.sub(r"[^a-z0-9 ]", "", t)
+    t = re.sub(r"\s+", " ", t)
     return t.strip()
 
 # =========================================================
 # STORAGE
 # =========================================================
 
+
 def _ensure_json_file(path: str, default: Any) -> None:
     if not os.path.exists(path):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(default, f, ensure_ascii=False, indent=2)
+
 
 def _load_json(path: str, default: Any) -> Any:
     _ensure_json_file(path, default)
@@ -345,18 +361,22 @@ def _load_json(path: str, default: Any) -> Any:
     except Exception:
         return default
 
+
 def _save_json(path: str, data: Any) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
 
 def carregar_promocoes() -> list:
     data = _load_json(PROMOCOES_FILE, [])
     return data if isinstance(data, list) else []
 
+
 def salvar_promocoes(promocoes: list) -> None:
     if not isinstance(promocoes, list):
         promocoes = []
     _save_json(PROMOCOES_FILE, promocoes)
+
 
 def carregar_metricas() -> dict:
     data = _load_json(
@@ -370,9 +390,11 @@ def carregar_metricas() -> dict:
             "ultimo_erro": "nenhum",
             "falhas_fontes": {},
             "alertas_criticos": 0,
+            "varredura_em_andamento": False,
         },
     )
     return data if isinstance(data, dict) else {}
+
 
 def salvar_metricas(metricas: dict) -> None:
     if not isinstance(metricas, dict):
@@ -382,6 +404,7 @@ def salvar_metricas(metricas: dict) -> None:
 # =========================================================
 # DEDUP
 # =========================================================
+
 
 def _parse_data(valor):
     if not valor:
@@ -396,70 +419,131 @@ def _parse_data(valor):
             continue
     return None
 
+
 def _norm_assinatura(texto):
     return " ".join(str(texto or "").lower().strip().split())
 
+
+def _semantic_transfer_key(title: str, program: str, bonus: int) -> str:
+    t = clean_text(title).lower()
+    parceiros = [
+        ("krisflyer", "krisflyer"),
+        ("smiles", "smiles"),
+        ("latam pass", "latampass"),
+        ("latam", "latampass"),
+        ("tudoazul", "tudoazul"),
+        ("azul", "tudoazul"),
+        ("livelo", "livelo"),
+        ("esfera", "esfera"),
+        ("all accor", "allaccor"),
+        ("accor", "allaccor"),
+        ("iberia", "iberia"),
+        ("avios", "iberia"),
+        ("tap", "tap"),
+        ("flying blue", "flyingblue"),
+    ]
+    parceiro = "geral"
+    for raw, norm in parceiros:
+        if raw in t and raw.lower() not in str(program).lower():
+            parceiro = norm
+            break
+    return f"{str(program).lower()}|{parceiro}|{bonus}"
+
+
 def _assinatura(promo: dict) -> str:
-    return "|".join([
-        _norm_assinatura(promo.get("type")),
-        _norm_assinatura(promo.get("program")),
-        _norm_assinatura(titulo_normalizado(promo.get("title"))),
-    ])
+    tipo = _norm_assinatura(promo.get("type"))
+    program = _norm_assinatura(promo.get("program"))
+    title = titulo_normalizado(promo.get("title"))
+    bonus = int(promo.get("bonus_detectado") or 0)
+
+    if tipo == "transferencias" and program and bonus:
+        return f"{tipo}|{_semantic_transfer_key(title, program, bonus)}"
+
+    if tipo == "milheiro":
+        milheiro = promo.get("milheiro_detectado")
+        faixa = ""
+        if milheiro is not None:
+            try:
+                faixa = str(int(round(float(milheiro))))
+            except Exception:
+                faixa = ""
+        return f"{tipo}|{program}|{faixa}|{title[:80]}"
+
+    if tipo == "passagens":
+        sweet = "sweet" if promo.get("sweet_spot") else "normal"
+        return f"{tipo}|{program}|{sweet}|{title[:100]}"
+
+    return f"{tipo}|{program}|{title}"
+
 
 def deduplicar(promocoes: list) -> list:
     if not isinstance(promocoes, list):
         return []
+
     janela = timedelta(hours=JANELA_REPETICAO_HORAS)
     ordenadas = sorted(
         promocoes,
         key=lambda p: _parse_data(p.get("created_at")) or datetime.min,
         reverse=True,
     )
+
     resultado = []
     vistos = {}
+
     for promo in ordenadas:
         assinatura = _assinatura(promo)
         data_atual = _parse_data(promo.get("created_at")) or datetime.now()
+
         if assinatura not in vistos:
             vistos[assinatura] = data_atual
             resultado.append(promo)
             continue
+
         if abs(vistos[assinatura] - data_atual) > janela:
             vistos[assinatura] = data_atual
             resultado.append(promo)
+
     return resultado
 
 # =========================================================
 # HTTP HELPERS
 # =========================================================
 
+
 def safe_get(url: str) -> requests.Response:
     return requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+
 
 def parse_html_text(html_text: str) -> str:
     soup = BeautifulSoup(html_text, "html.parser")
     parts = []
+
     if soup.title and soup.title.get_text(strip=True):
         parts.append(soup.title.get_text(" ", strip=True))
+
     for tag in soup.find_all(["h1", "h2", "h3"]):
         txt = tag.get_text(" ", strip=True)
         if txt:
             parts.append(txt)
+
     for tag in soup.find_all(["p", "span", "div", "li"]):
         txt = tag.get_text(" ", strip=True)
         if txt and len(txt) > 20:
             parts.append(txt)
         if len(" ".join(parts)) > 3500:
             break
+
     return clean_text(" ".join(parts))[:4000]
 
 # =========================================================
 # COLLECTORS
 # =========================================================
 
+
 def coletar_rss():
     itens = []
     falhas = {}
+
     for url in FONTES_RSS:
         try:
             feed = feedparser.parse(url)
@@ -478,11 +562,14 @@ def coletar_rss():
                 )
         except Exception as e:
             falhas[url] = str(e)
+
     return itens, falhas
+
 
 def coletar_paginas_oficiais():
     itens = []
     falhas = {}
+
     for fonte in FONTES_OFICIAIS:
         url = fonte["url"]
         try:
@@ -502,7 +589,9 @@ def coletar_paginas_oficiais():
             )
         except Exception as e:
             falhas[url] = str(e)
+
     return itens, falhas
+
 
 def _parse_sitemap_xml(xml_text: str) -> list:
     try:
@@ -516,6 +605,7 @@ def _parse_sitemap_xml(xml_text: str) -> list:
         ns = {"sm": ns_uri}
 
     urls = []
+
     if root.tag.endswith("sitemapindex"):
         path = ".//sm:loc" if ns else ".//loc"
         for loc in root.findall(path, ns):
@@ -527,7 +617,9 @@ def _parse_sitemap_xml(xml_text: str) -> list:
     for loc in root.findall(path, ns):
         if loc.text:
             urls.append(loc.text.strip())
+
     return urls
+
 
 def _interesting_url(url: str) -> bool:
     u = url.lower()
@@ -539,9 +631,11 @@ def _interesting_url(url: str) -> bool:
     ]
     return any(k in u for k in keywords)
 
+
 def coletar_sitemaps():
     itens = []
     falhas = {}
+
     for fonte in SITEMAP_SOURCES:
         try:
             resp = safe_get(fonte["url"])
@@ -568,60 +662,74 @@ def coletar_sitemaps():
                     filtered.append(url)
 
             for url in filtered[:20]:
-                itens.append({
-                    "title": url,
-                    "link": url,
-                    "summary": url,
-                    "source_url": fonte["url"],
-                    "source_kind": "sitemap",
-                    "type_hint": None,
-                    "program_hint": fonte["program"],
-                })
+                itens.append(
+                    {
+                        "title": url,
+                        "link": url,
+                        "summary": url,
+                        "source_url": fonte["url"],
+                        "source_kind": "sitemap",
+                        "type_hint": None,
+                        "program_hint": fonte["program"],
+                    }
+                )
         except Exception as e:
             falhas[fonte["url"]] = str(e)
+
     return itens, falhas
+
 
 def coletar_milheiro_publico():
     itens = []
     falhas = {}
+
     for fonte in PUBLIC_MILEAGE_SOURCES:
         try:
             resp = safe_get(fonte["url"])
             resp.raise_for_status()
             texto = parse_html_text(resp.text)
-            itens.append({
-                "title": texto,
-                "link": str(resp.url),
-                "summary": texto,
-                "source_url": fonte["url"],
-                "source_kind": "marketplace",
-                "type_hint": "milheiro",
-                "program_hint": fonte["program"],
-            })
+            itens.append(
+                {
+                    "title": texto,
+                    "link": str(resp.url),
+                    "summary": texto,
+                    "source_url": fonte["url"],
+                    "source_kind": "marketplace",
+                    "type_hint": "milheiro",
+                    "program_hint": fonte["program"],
+                }
+            )
         except Exception as e:
             falhas[fonte["url"]] = str(e)
+
     return itens, falhas
+
 
 def coletar_paginas_promocionais():
     itens = []
     falhas = {}
+
     for fonte in PROMO_PAGES:
         try:
             resp = safe_get(fonte["url"])
             resp.raise_for_status()
             texto = parse_html_text(resp.text)
-            itens.append({
-                "title": texto[:220],
-                "link": str(resp.url),
-                "summary": texto,
-                "source_url": fonte["url"],
-                "source_kind": "promo_page",
-                "type_hint": fonte.get("type_hint"),
-                "program_hint": fonte.get("program"),
-            })
+            itens.append(
+                {
+                    "title": texto[:220],
+                    "link": str(resp.url),
+                    "summary": texto,
+                    "source_url": fonte["url"],
+                    "source_kind": "promo_page",
+                    "type_hint": fonte.get("type_hint"),
+                    "program_hint": fonte.get("program"),
+                }
+            )
         except Exception as e:
             falhas[fonte["url"]] = str(e)
+
     return itens, falhas
+
 
 def coletar_todas_fontes():
     itens = []
@@ -643,6 +751,7 @@ def coletar_todas_fontes():
 # =========================================================
 # DETECTION
 # =========================================================
+
 
 def _detect_program(texto: str, program_hint=None):
     if program_hint:
@@ -679,11 +788,13 @@ def _detect_program(texto: str, program_hint=None):
 
     return None
 
+
 def _detectar_bonus_alto(texto: str) -> int:
     t = clean_text(texto).lower()
     achados = re.findall(r"(\d{2,3})\s*%", t)
     bonus = [int(x) for x in achados if x.isdigit()]
     return max(bonus) if bonus else 0
+
 
 def _detectar_milheiro(texto: str) -> float | None:
     t = clean_text(texto).lower()
@@ -699,13 +810,16 @@ def _detectar_milheiro(texto: str) -> float | None:
                 return float(m.group(1).replace(",", "."))
             except Exception:
                 pass
+
     m = re.search(r"r\$\s*(\d+[,.]?\d*)", t)
     if m and ("milheiro" in t or "clube" in t or "comprar milhas" in t or "compra de pontos" in t):
         try:
             return float(m.group(1).replace(",", "."))
         except Exception:
             return None
+
     return None
+
 
 def _detectar_sweet_spot(texto: str) -> bool:
     t = clean_text(texto).lower()
@@ -718,6 +832,7 @@ def _detectar_sweet_spot(texto: str) -> bool:
     if any(k in t for k in ["off no resgate", "desconto no resgate", "25% off", "30% off"]):
         return True
     return False
+
 
 def _detect_type(texto: str, type_hint: str | None = None):
     t = clean_text(texto).lower()
@@ -751,6 +866,7 @@ def _detect_type(texto: str, type_hint: str | None = None):
 
     return hinted
 
+
 def _score_transferencias(texto: str) -> float:
     bonus = _detectar_bonus_alto(texto)
     if bonus >= 150:
@@ -775,12 +891,14 @@ def _score_transferencias(texto: str) -> float:
         return 6.5
     return 6.0
 
+
 def _score_passagens(texto: str) -> float:
     t = clean_text(texto).lower()
     if _detectar_sweet_spot(t):
         return 9.3
     if "25% off" in t or "off no resgate" in t or "desconto no resgate" in t:
         return 9.0
+
     numeros = re.findall(r"(\d{3,6})", t)
     valores = []
     for n in numeros:
@@ -788,6 +906,7 @@ def _score_passagens(texto: str) -> float:
             valores.append(int(n))
         except Exception:
             continue
+
     pontos = min(valores) if valores else 0
     if pontos and pontos <= 5000:
         return 9.0
@@ -796,6 +915,7 @@ def _score_passagens(texto: str) -> float:
     if pontos and pontos <= 25000:
         return 8.0
     return 7.5
+
 
 def _score_milheiro(texto: str) -> float:
     valor = _detectar_milheiro(texto)
@@ -813,6 +933,7 @@ def _score_milheiro(texto: str) -> float:
         return 8.0
     return 7.0
 
+
 def _classificacao(score: float) -> str:
     if score >= 9.0:
         return "🔴 PROMOÇÃO IMPERDÍVEL"
@@ -821,6 +942,7 @@ def _classificacao(score: float) -> str:
     if score >= 7.0:
         return "🟢 PROMOÇÃO BOA"
     return "⚪ PROMOÇÃO REGULAR"
+
 
 def _alerta_prioridade(tipo: str, score: float, bonus: int, milheiro: float | None, sweet_spot: bool) -> str:
     if tipo == "transferencias" and bonus >= 100:
@@ -841,6 +963,7 @@ def _alerta_prioridade(tipo: str, score: float, bonus: int, milheiro: float | No
         return "🟢 PROMOÇÃO BOA"
     return "⚪ INFORMATIVO"
 
+
 def _peso_categoria(tipo: str) -> float:
     if tipo == "milheiro":
         return 1.0
@@ -850,9 +973,23 @@ def _peso_categoria(tipo: str) -> float:
         return 0.8
     return 0.3
 
-def _build_id(titulo: str, link: str, tipo: str) -> str:
-    base = f"{tipo}|{titulo_normalizado(titulo)}"
+
+def _build_id(titulo: str, link: str, tipo: str, program: str = "", bonus: int = 0) -> str:
+    base_parts = [tipo, titulo_normalizado(titulo)]
+
+    if tipo == "transferencias":
+        base_parts.append(str(program or "").lower())
+        if bonus:
+            base_parts.append(str(bonus))
+
+    if tipo == "milheiro":
+        val = _detectar_milheiro(titulo)
+        if val is not None:
+            base_parts.append(str(int(round(val))))
+
+    base = "|".join(base_parts)
     return hashlib.md5(base.encode("utf-8")).hexdigest()
+
 
 def transformar_em_promocoes(itens: list) -> list:
     promocoes = []
@@ -900,7 +1037,7 @@ def transformar_em_promocoes(itens: list) -> list:
         ranking_score = round(score * _peso_categoria(tipo), 2)
 
         promo = {
-            "id": _build_id(titulo_curto, link, tipo),
+            "id": _build_id(titulo_curto, link, tipo, program or "", bonus),
             "title": titulo_curto,
             "link": link,
             "type": tipo,
@@ -924,6 +1061,7 @@ def transformar_em_promocoes(itens: list) -> list:
 # RADAR ENGINE
 # =========================================================
 
+
 class RadarState:
     def __init__(self):
         self.promocoes = carregar_promocoes()
@@ -936,91 +1074,139 @@ class RadarState:
         self.metricas.setdefault("ultimo_erro", "nenhum")
         self.metricas.setdefault("falhas_fontes", {})
         self.metricas.setdefault("alertas_criticos", 0)
+        self.metricas.setdefault("varredura_em_andamento", False)
 
     def persistir(self):
         salvar_promocoes(self.promocoes)
         salvar_metricas(self.metricas)
 
+
 STATE = RadarState()
 
+
 def executar_varredura():
-    itens, falhas = coletar_todas_fontes()
-
-    fontes_monitoradas = (
-        len(FONTES_RSS)
-        + len(FONTES_OFICIAIS)
-        + len(SITEMAP_SOURCES)
-        + len(PUBLIC_MILEAGE_SOURCES)
-        + len(PROMO_PAGES)
-    )
-    fontes_com_erro = len(falhas)
-    fontes_ativas = max(fontes_monitoradas - fontes_com_erro, 0)
-
-    STATE.metricas["fontes_monitoradas"] = fontes_monitoradas
-    STATE.metricas["fontes_ativas"] = fontes_ativas
-    STATE.metricas["fontes_com_erro"] = fontes_com_erro
-    STATE.metricas["falhas_fontes"] = falhas
-
-    promocoes_detectadas = transformar_em_promocoes(itens)
-    promocoes_detectadas = deduplicar(promocoes_detectadas)
-
-    historico = carregar_promocoes()
-    ids_existentes = {p.get("id") for p in historico}
-
-    novas = []
-    criticos = 0
-    for promo in promocoes_detectadas:
-        if promo.get("id") not in ids_existentes:
-            novas.append(promo)
-            historico.append(promo)
-            if str(promo.get("alert_priority", "")).startswith("🚨"):
-                criticos += 1
-
-    historico = deduplicar(historico)
-    STATE.promocoes = historico[-1200:] if len(historico) > 1200 else historico
-    STATE.metricas["alertas_criticos"] = criticos
+    STATE.metricas["varredura_em_andamento"] = True
     STATE.persistir()
 
-    return {"novas": novas, "detectadas": len(promocoes_detectadas)}
+    try:
+        itens, falhas = coletar_todas_fontes()
+
+        fontes_monitoradas = (
+            len(FONTES_RSS)
+            + len(FONTES_OFICIAIS)
+            + len(SITEMAP_SOURCES)
+            + len(PUBLIC_MILEAGE_SOURCES)
+            + len(PROMO_PAGES)
+        )
+        fontes_com_erro = len(falhas)
+        fontes_ativas = max(fontes_monitoradas - fontes_com_erro, 0)
+
+        STATE.metricas["fontes_monitoradas"] = fontes_monitoradas
+        STATE.metricas["fontes_ativas"] = fontes_ativas
+        STATE.metricas["fontes_com_erro"] = fontes_com_erro
+        STATE.metricas["falhas_fontes"] = falhas
+
+        promocoes_detectadas = transformar_em_promocoes(itens)
+        promocoes_detectadas = deduplicar(promocoes_detectadas)
+
+        historico = carregar_promocoes()
+        ids_existentes = {p.get("id") for p in historico}
+
+        novas = []
+        criticos = 0
+
+        for promo in promocoes_detectadas:
+            if promo.get("id") not in ids_existentes:
+                novas.append(promo)
+                historico.append(promo)
+                if str(promo.get("alert_priority", "")).startswith("🚨"):
+                    criticos += 1
+
+        historico = deduplicar(historico)
+        STATE.promocoes = historico[-1200:] if len(historico) > 1200 else historico
+        STATE.metricas["alertas_criticos"] = criticos
+        STATE.metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        STATE.metricas["ultimo_erro"] = "nenhum"
+        STATE.metricas["varredura_em_andamento"] = False
+        STATE.persistir()
+
+        return {"novas": novas, "detectadas": len(promocoes_detectadas)}
+    except Exception as e:
+        STATE.metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        STATE.metricas["ultimo_erro"] = str(e)
+        STATE.metricas["varredura_em_andamento"] = False
+        STATE.persistir()
+        raise
+
 
 def get_state_snapshot():
     STATE.promocoes = carregar_promocoes()
     STATE.metricas = carregar_metricas()
     return {"promocoes": STATE.promocoes, "metricas": STATE.metricas}
 
+
 def get_promocoes_por_tipo(tipo: str, limit: int = 5) -> list:
     snapshot = get_state_snapshot()
     promos = [p for p in snapshot["promocoes"] if p.get("type") == tipo]
     promos = [p for p in promos if p.get("program") != "Programa não identificado"]
+
+    if tipo == "transferencias":
+        promos = [
+            p for p in promos
+            if not any(term in clean_text(p.get("title", "")).lower() for term in [
+                "credit card", "card", "welcome offer", "sign up", "signup",
+                "marriott", "bonvoy", "brilliant card", "cartão", "cartao"
+            ])
+        ]
+
     promos = sorted(promos, key=lambda p: (p.get("ranking_score", 0), p.get("score", 0)), reverse=True)
     return promos[:limit]
+
 
 def get_ranking(limit: int = 5) -> list:
     snapshot = get_state_snapshot()
     promos = [p for p in snapshot["promocoes"] if p.get("program") != "Programa não identificado"]
-    promos = sorted(
-        promos,
-        key=lambda p: (p.get("ranking_score", 0), p.get("score", 0)),
-        reverse=True,
-    )
+    promos = sorted(promos, key=lambda p: (p.get("ranking_score", 0), p.get("score", 0)), reverse=True)
     return promos[:limit]
 
 # =========================================================
 # TELEGRAM TEXT
 # =========================================================
 
+
 def build_status_text(interval_seconds: int) -> str:
     snapshot = get_state_snapshot()
     promocoes = snapshot["promocoes"]
     metricas = snapshot["metricas"]
+
+    fontes_monitoradas = metricas.get("fontes_monitoradas", 0)
+    fontes_ativas = metricas.get("fontes_ativas", 0)
+    fontes_com_erro = metricas.get("fontes_com_erro", 0)
+    ultima_execucao = metricas.get("ultima_execucao") or "ainda não executado"
+    ultimo_erro = metricas.get("ultimo_erro", "nenhum")
+
+    if metricas.get("varredura_em_andamento") and fontes_monitoradas == 0:
+        fontes_monitoradas = (
+            len(FONTES_RSS)
+            + len(FONTES_OFICIAIS)
+            + len(SITEMAP_SOURCES)
+            + len(PUBLIC_MILEAGE_SOURCES)
+            + len(PROMO_PAGES)
+        )
+
+    status_extra = ""
+    if metricas.get("varredura_em_andamento"):
+        status_extra = "\n⏳ Varredura em andamento: sim"
+
     return (
         "🟢 Radar online\n\n"
         f"⏱ Intervalo do radar: {interval_seconds} segundos\n"
         f"📥 Promoções detectadas: {len(promocoes)}\n"
-        f"🛰 Fontes monitoradas: {metricas.get('fontes_monitoradas', 0)}\n"
-        f"✅ Fontes ativas: {metricas.get('fontes_ativas', 0)}\n"
-        f"❌ Fontes com erro: {metricas.get('fontes_com_erro', 0)}\n"
-        f"🚨 Alertas críticos no último ciclo: {metricas.get('alertas_criticos', 0)}\n\n"
+        f"🛰 Fontes monitoradas: {fontes_monitoradas}\n"
+        f"✅ Fontes ativas: {fontes_ativas}\n"
+        f"❌ Fontes com erro: {fontes_com_erro}\n"
+        f"🚨 Alertas críticos no último ciclo: {metricas.get('alertas_criticos', 0)}"
+        f"{status_extra}\n\n"
         "Detectores ativos:\n"
         "✓ blogs\n"
         "✓ programas oficiais\n"
@@ -1032,14 +1218,16 @@ def build_status_text(interval_seconds: int) -> str:
         "✓ score automático\n"
         "✓ envio no canal\n\n"
         f"📤 Últimos alertas enviados: {metricas.get('ultimos_alertas_enviados', 0)}\n"
-        f"🕒 Última execução: {metricas.get('ultima_execucao') or 'ainda não executado'}\n"
-        f"⚠️ Último erro: {metricas.get('ultimo_erro', 'nenhum')}"
+        f"🕒 Última execução: {ultima_execucao}\n"
+        f"⚠️ Último erro: {ultimo_erro}"
     )
+
 
 def build_debug_text() -> str:
     snapshot = get_state_snapshot()
     metricas = snapshot["metricas"]
     falhas = metricas.get("falhas_fontes", {})
+
     texto = (
         "🛠 DEBUG RADAR\n"
         "━━━━━━━━━━━━━━\n\n"
@@ -1051,12 +1239,15 @@ def build_debug_text() -> str:
         "Falhas por fonte\n"
         "━━━━━━━━━━━━━━\n\n"
     )
+
     if not falhas:
         texto += "Nenhuma falha crítica detectada."
     else:
         for fonte, erro in falhas.items():
             texto += f"• {fonte}: {erro}\n"
+
     return texto.strip()
+
 
 def format_card(promo: dict) -> str:
     prioridade = promo.get("alert_priority", "🟢 PROMOÇÃO BOA")
@@ -1076,9 +1267,11 @@ def format_card(promo: dict) -> str:
     texto += str(promo.get("link", ""))
     return texto
 
+
 def format_lista(titulo: str, promocoes: list) -> str:
     if not promocoes:
         return f"{titulo}\n\nNenhuma promoção registrada ainda."
+
     partes = [titulo, ""]
     for promo in promocoes:
         partes.append("━━━━━━━━━━━━━━")
@@ -1105,12 +1298,14 @@ def format_lista(titulo: str, promocoes: list) -> str:
 SCAN_LOCK = asyncio.Lock()
 _APP = None
 
+
 def is_admin(update: Update) -> bool:
     if not ADMIN_IDS:
         return True
     if not update.effective_chat:
         return False
     return update.effective_chat.id in ADMIN_IDS
+
 
 async def _run_scan() -> dict:
     async with SCAN_LOCK:
@@ -1128,9 +1323,11 @@ async def _run_scan() -> dict:
         STATE.metricas["ultimos_alertas_enviados"] = len(novas)
         STATE.metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         STATE.metricas["ultimo_erro"] = "nenhum"
+        STATE.metricas["varredura_em_andamento"] = False
         STATE.persistir()
 
         return {"detectadas": detectadas, "novas": len(novas)}
+
 
 async def _scheduled_scan():
     try:
@@ -1138,7 +1335,9 @@ async def _scheduled_scan():
     except Exception as e:
         STATE.metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         STATE.metricas["ultimo_erro"] = str(e)
+        STATE.metricas["varredura_em_andamento"] = False
         STATE.persistir()
+
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -1151,6 +1350,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/status",
         disable_web_page_preview=True,
     )
+
 
 async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -1165,8 +1365,10 @@ async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         disable_web_page_preview=True,
     )
 
+
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(build_status_text(RADAR_INTERVAL_SECONDS), disable_web_page_preview=True)
+
 
 async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
@@ -1174,9 +1376,11 @@ async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await update.message.reply_text(build_debug_text(), disable_web_page_preview=True)
 
+
 async def cmd_promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_ranking(limit=5)
     await update.message.reply_text(format_lista("🔥 Últimas promoções", promos), disable_web_page_preview=True)
+
 
 async def cmd_transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_promocoes_por_tipo("transferencias", limit=5)
@@ -1186,9 +1390,11 @@ async def cmd_transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE)
         texto = format_lista("💳 Promoções de transferências de pontos monitoradas", promos)
     await update.message.reply_text(texto, disable_web_page_preview=True)
 
+
 async def cmd_passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_promocoes_por_tipo("passagens", limit=5)
     await update.message.reply_text(format_lista("✈️ Últimos alertas de passagens", promos), disable_web_page_preview=True)
+
 
 async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_ranking(limit=MAX_RANKING if MAX_RANKING < 6 else 5)
@@ -1209,13 +1415,16 @@ async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
             linhas.append("")
     await update.message.reply_text("\n".join(linhas), disable_web_page_preview=True)
 
+
 async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
         await update.message.reply_text("⛔ Comando disponível apenas para o administrador.")
         return
+
     if SCAN_LOCK.locked():
         await update.message.reply_text("⏳ Já existe uma varredura em andamento. Aguarde terminar.", disable_web_page_preview=True)
         return
+
     await update.message.reply_text("🧪 Teste manual do radar iniciado...", disable_web_page_preview=True)
     try:
         result = await _run_scan()
@@ -1232,8 +1441,10 @@ async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         STATE.metricas["ultimo_erro"] = str(e)
+        STATE.metricas["varredura_em_andamento"] = False
         STATE.persistir()
         await update.message.reply_text(f"❌ Erro ao executar o radar: {e}", disable_web_page_preview=True)
+
 
 async def post_init(application):
     scheduler = AsyncIOScheduler()
@@ -1248,13 +1459,16 @@ async def post_init(application):
     scheduler.start()
     application.bot_data["scheduler"] = scheduler
 
+
 async def post_shutdown(application):
     scheduler = application.bot_data.get("scheduler")
     if scheduler:
         scheduler.shutdown(wait=False)
 
+
 def main():
     global _APP
+
     _APP = (
         ApplicationBuilder()
         .token(TELEGRAM_TOKEN)
@@ -1262,6 +1476,7 @@ def main():
         .post_shutdown(post_shutdown)
         .build()
     )
+
     _APP.add_handler(CommandHandler("start", cmd_start))
     _APP.add_handler(CommandHandler("menu", cmd_menu))
     _APP.add_handler(CommandHandler("status", cmd_status))
@@ -1271,7 +1486,9 @@ def main():
     _APP.add_handler(CommandHandler("passagens", cmd_passagens))
     _APP.add_handler(CommandHandler("ranking", cmd_ranking))
     _APP.add_handler(CommandHandler("testeradar", cmd_testeradar))
+
     _APP.run_polling(drop_pending_updates=False)
+
 
 if __name__ == "__main__":
     main()
