@@ -169,7 +169,7 @@ TRANSFER_REJECT_TERMS = [
     "pontos por real gasto",
     "por real gasto",
     "varejo",
-    "parceiros",
+    "parceiros varejistas",
     "parceiro varejista",
     "campanha de acúmulo",
     "campanha de acumulo",
@@ -196,11 +196,41 @@ TRANSFER_REJECT_TERMS = [
     "tier bonuses",
 ]
 
+TRANSFER_EXTRA_REJECT_TERMS = [
+    "assine",
+    "assinatura",
+    "signature",
+    "clube assinatura",
+    "criar conta",
+    "fazer login",
+    "login",
+    "boas vindas",
+    "boas-vindas",
+    "reativacao",
+    "reativação",
+    "compre pontos",
+    "compra de pontos",
+    "comprar pontos",
+    "comprar milhas",
+    "hotéis",
+    "hoteis",
+    "hotel",
+    "desconto",
+    "euros",
+    "gaste em hotéis",
+    "gaste em hoteis",
+    "all signature",
+    "acelere seus benefícios",
+    "acelere seus beneficios",
+]
+
 ANTI_SPAM_TERMS = [
     "radar ppv",
     "resumo da semana",
     "resumo do dia",
     "resumo das promoções",
+    "promocoes que terminam hoje",
+    "promoções que terminam hoje",
     "última chamada",
     "ultima chamada",
     "última edição",
@@ -212,8 +242,6 @@ ANTI_SPAM_TERMS = [
     "como funciona",
     "melhores cartões",
     "melhores cartoes",
-    "promoções que terminam hoje",
-    "promocoes que terminam hoje",
 ]
 
 RANKING_REJECT_TERMS = [
@@ -367,7 +395,8 @@ def is_strict_transfer_post(texto: str) -> bool:
     t = clean_text(texto).lower()
     has_accept = any(term in t for term in TRANSFER_ACCEPT_TERMS)
     has_reject = any(term in t for term in TRANSFER_REJECT_TERMS)
-    return has_accept and not has_reject
+    has_extra_reject = any(term in t for term in TRANSFER_EXTRA_REJECT_TERMS)
+    return has_accept and not has_reject and not has_extra_reject
 
 
 def is_spammy_generic_post(title: str, summary: str) -> bool:
@@ -396,7 +425,7 @@ def cleanup_title_for_output(texto: str) -> str:
     texto = clean_text(texto)
     texto = strip_noise_phrases(texto)
 
-    padrões = [
+    padroes = [
         r"^alerta de passagens ppv[!:\-\s]*",
         r"^alerta passagens ppv[!:\-\s]*",
         r"^radar ppv[!:\-\s]*",
@@ -409,7 +438,7 @@ def cleanup_title_for_output(texto: str) -> str:
         r"^seja bem[- ]vindo[a]?\s+a\s+mais\s+uma\s+edição\s+do\s+.*",
         r"^seja bem[- ]vindo[a]?\s+a\s+mais\s+uma\s+edicao\s+do\s+.*",
     ]
-    for padrao in padrões:
+    for padrao in padroes:
         texto = re.sub(padrao, "", texto, flags=re.I).strip()
 
     texto = re.sub(r"\s+", " ", texto).strip(" -:,.")
@@ -497,6 +526,7 @@ def carregar_metricas() -> dict:
             "alertas_criticos": 0,
             "varredura_em_andamento": False,
             "promocoes_detectadas_ultimo_ciclo": 0,
+            "startup_scan_concluido": False,
         },
     )
     return data if isinstance(data, dict) else {}
@@ -1263,6 +1293,7 @@ class RadarState:
         self.metricas.setdefault("alertas_criticos", 0)
         self.metricas.setdefault("varredura_em_andamento", False)
         self.metricas.setdefault("promocoes_detectadas_ultimo_ciclo", 0)
+        self.metricas.setdefault("startup_scan_concluido", False)
 
     def persistir(self):
         salvar_promocoes(self.promocoes)
@@ -1284,9 +1315,16 @@ def total_fontes_monitoradas() -> int:
 
 
 def executar_varredura():
-    STATE.metricas["varredura_em_andamento"] = True
-    STATE.metricas["fontes_monitoradas"] = total_fontes_monitoradas()
-    STATE.persistir()
+    """
+    Correção 1:
+    Não zera métricas úteis no início.
+    Só marca varredura em andamento e preserva o último estado consistente
+    até o final da consolidação.
+    """
+    metricas = carregar_metricas()
+    metricas["varredura_em_andamento"] = True
+    metricas["fontes_monitoradas"] = metricas.get("fontes_monitoradas", 0) or total_fontes_monitoradas()
+    salvar_metricas(metricas)
 
     try:
         itens, falhas = coletar_todas_fontes()
@@ -1295,15 +1333,8 @@ def executar_varredura():
         fontes_com_erro = len(falhas)
         fontes_ativas = max(fontes_monitoradas - fontes_com_erro, 0)
 
-        STATE.metricas["fontes_monitoradas"] = fontes_monitoradas
-        STATE.metricas["fontes_ativas"] = fontes_ativas
-        STATE.metricas["fontes_com_erro"] = fontes_com_erro
-        STATE.metricas["falhas_fontes"] = falhas
-
         promocoes_detectadas = transformar_em_promocoes(itens)
         promocoes_detectadas = deduplicar(promocoes_detectadas)
-        STATE.metricas["promocoes_detectadas_ultimo_ciclo"] = len(promocoes_detectadas)
-        STATE.persistir()
 
         historico = carregar_promocoes()
         ids_existentes = {p.get("id") for p in historico}
@@ -1319,26 +1350,61 @@ def executar_varredura():
                     criticos += 1
 
         historico = deduplicar(historico)
-        STATE.promocoes = historico[-1500:] if len(historico) > 1500 else historico
-        STATE.metricas["alertas_criticos"] = criticos
-        STATE.metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        STATE.metricas["ultimo_erro"] = "nenhum"
-        STATE.metricas["varredura_em_andamento"] = False
-        STATE.persistir()
+        historico = historico[-1500:] if len(historico) > 1500 else historico
+        salvar_promocoes(historico)
 
+        metricas = carregar_metricas()
+        metricas["fontes_monitoradas"] = fontes_monitoradas
+        metricas["fontes_ativas"] = fontes_ativas
+        metricas["fontes_com_erro"] = fontes_com_erro
+        metricas["falhas_fontes"] = falhas
+        metricas["promocoes_detectadas_ultimo_ciclo"] = len(promocoes_detectadas)
+        metricas["alertas_criticos"] = criticos
+        metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        metricas["ultimo_erro"] = "nenhum"
+        metricas["varredura_em_andamento"] = False
+        metricas["startup_scan_concluido"] = True
+        salvar_metricas(metricas)
+
+        STATE.promocoes = historico
+        STATE.metricas = metricas
         return {"novas": novas, "detectadas": len(promocoes_detectadas)}
     except Exception as e:
-        STATE.metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        STATE.metricas["ultimo_erro"] = str(e)
-        STATE.metricas["varredura_em_andamento"] = False
-        STATE.persistir()
+        metricas = carregar_metricas()
+        metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        metricas["ultimo_erro"] = str(e)
+        metricas["varredura_em_andamento"] = False
+        salvar_metricas(metricas)
+        STATE.metricas = metricas
         raise
 
 
 def get_state_snapshot():
-    STATE.promocoes = carregar_promocoes()
-    STATE.metricas = carregar_metricas()
-    return {"promocoes": STATE.promocoes, "metricas": STATE.metricas}
+    """
+    Correção 2:
+    Todos os comandos leem exatamente a mesma fotografia persistida.
+    """
+    promocoes = carregar_promocoes()
+    metricas = carregar_metricas()
+
+    metricas.setdefault("fontes_monitoradas", 0)
+    metricas.setdefault("fontes_ativas", 0)
+    metricas.setdefault("fontes_com_erro", 0)
+    metricas.setdefault("ultimos_alertas_enviados", 0)
+    metricas.setdefault("ultima_execucao", None)
+    metricas.setdefault("ultimo_erro", "nenhum")
+    metricas.setdefault("falhas_fontes", {})
+    metricas.setdefault("alertas_criticos", 0)
+    metricas.setdefault("varredura_em_andamento", False)
+    metricas.setdefault("promocoes_detectadas_ultimo_ciclo", 0)
+    metricas.setdefault("startup_scan_concluido", False)
+
+    if not metricas.get("fontes_monitoradas"):
+        metricas["fontes_monitoradas"] = total_fontes_monitoradas()
+
+    STATE.promocoes = promocoes
+    STATE.metricas = metricas
+    return {"promocoes": promocoes, "metricas": metricas}
 
 
 def get_promocoes_por_tipo(tipo: str, limit: int = 5) -> list:
@@ -1353,16 +1419,30 @@ def get_promocoes_por_tipo(tipo: str, limit: int = 5) -> list:
             "tier point", "tier points", "status bonus", "american airlines flights",
             "ba adds tier point", "tier bonuses",
             "compre pontos", "compra de pontos", "reativacao", "reativação",
-            "criar conta", "fazer login", "boas vindas", "boas-vindas",
+            "criar conta", "fazer login", "login", "boas vindas", "boas-vindas",
+            "assine", "assinatura", "signature", "all signature",
+            "hotel", "hoteis", "hotéis", "desconto", "euros",
+            "gaste em hotéis", "gaste em hoteis",
+            "acelere seus beneficios", "acelere seus benefícios",
         ]
         filtradas = []
         for p in promos:
             titulo = clean_text(p.get("title", "")).lower()
+            link = clean_text(p.get("link", "")).lower()
+
             if any(term in titulo for term in bloqueios):
+                continue
+            if any(term in link for term in ["reativacao", "bonus-200", "signature"]):
                 continue
             if titulo.startswith("http://") or titulo.startswith("https://"):
                 continue
+
+            bonus = int(p.get("bonus_detectado") or 0)
+            if bonus < 30:
+                continue
+
             filtradas.append(p)
+
         promos = filtradas
 
     promos = deduplicar(promos)
@@ -1394,6 +1474,7 @@ def get_ranking(limit: int = 5) -> list:
 
 def build_status_text(interval_seconds: int) -> str:
     snapshot = get_state_snapshot()
+    promocoes = snapshot["promocoes"]
     metricas = snapshot["metricas"]
 
     fontes_monitoradas = metricas.get("fontes_monitoradas", 0)
@@ -1403,8 +1484,8 @@ def build_status_text(interval_seconds: int) -> str:
     ultima_execucao = metricas.get("ultima_execucao") or "ainda não executado"
     ultimo_erro = metricas.get("ultimo_erro", "nenhum")
 
-    if metricas.get("varredura_em_andamento") and fontes_monitoradas == 0:
-        fontes_monitoradas = total_fontes_monitoradas()
+    if metricas.get("varredura_em_andamento") and promocoes_detectadas == 0 and promocoes:
+        promocoes_detectadas = len(promocoes)
 
     return (
         "🟢 Radar online\n\n"
@@ -1530,12 +1611,16 @@ async def _run_scan() -> dict:
                 disable_web_page_preview=True,
             )
 
-        STATE.metricas["ultimos_alertas_enviados"] = len(novas)
-        STATE.metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        STATE.metricas["ultimo_erro"] = "nenhum"
-        STATE.metricas["varredura_em_andamento"] = False
-        STATE.persistir()
+        metricas = carregar_metricas()
+        metricas["ultimos_alertas_enviados"] = len(novas)
+        metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        metricas["ultimo_erro"] = "nenhum"
+        metricas["varredura_em_andamento"] = False
+        metricas["startup_scan_concluido"] = True
+        salvar_metricas(metricas)
 
+        STATE.metricas = metricas
+        STATE.promocoes = carregar_promocoes()
         return {"detectadas": detectadas, "novas": len(novas)}
 
 
@@ -1543,10 +1628,12 @@ async def _scheduled_scan():
     try:
         await _run_scan()
     except Exception as e:
-        STATE.metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        STATE.metricas["ultimo_erro"] = str(e)
-        STATE.metricas["varredura_em_andamento"] = False
-        STATE.persistir()
+        metricas = carregar_metricas()
+        metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        metricas["ultimo_erro"] = str(e)
+        metricas["varredura_em_andamento"] = False
+        salvar_metricas(metricas)
+        STATE.metricas = metricas
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1609,7 +1696,10 @@ async def cmd_passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_ranking(limit=MAX_RANKING if MAX_RANKING < 6 else 5)
     if not promos:
-        await update.message.reply_text("🏆 Ranking oportunidades\n\nNenhuma promoção registrada ainda.", disable_web_page_preview=True)
+        await update.message.reply_text(
+            "🏆 Ranking oportunidades\n\nNenhuma promoção registrada ainda.",
+            disable_web_page_preview=True,
+        )
         return
 
     linhas = ["🏆 Ranking oportunidades", ""]
@@ -1623,6 +1713,7 @@ async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
             linhas.append("")
             linhas.append("━━━━━━━━━━━━━━")
             linhas.append("")
+
     await update.message.reply_text("\n".join(linhas), disable_web_page_preview=True)
 
 
@@ -1632,28 +1723,39 @@ async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if SCAN_LOCK.locked():
-        await update.message.reply_text("⏳ Já existe uma varredura em andamento. Aguarde terminar.", disable_web_page_preview=True)
+        await update.message.reply_text(
+            "⏳ Já existe uma varredura em andamento. Aguarde terminar.",
+            disable_web_page_preview=True,
+        )
         return
 
     await update.message.reply_text("🧪 Teste manual do radar iniciado...", disable_web_page_preview=True)
     try:
         result = await _run_scan()
+        metricas = carregar_metricas()
         await update.message.reply_text(
             "✅ Teste manual concluído.\n\n"
-            f"Fontes monitoradas: {STATE.metricas.get('fontes_monitoradas', 0)}\n"
-            f"Fontes ativas: {STATE.metricas.get('fontes_ativas', 0)}\n"
-            f"Fontes com erro: {STATE.metricas.get('fontes_com_erro', 0)}\n"
+            f"Fontes monitoradas: {metricas.get('fontes_monitoradas', 0)}\n"
+            f"Fontes ativas: {metricas.get('fontes_ativas', 0)}\n"
+            f"Fontes com erro: {metricas.get('fontes_com_erro', 0)}\n"
             f"Promoções analisadas: {result.get('detectadas', 0)}\n"
             f"Novas promoções enviadas: {result.get('novas', 0)}\n"
-            f"Alertas críticos no último ciclo: {STATE.metricas.get('alertas_criticos', 0)}\n"
-            f"Último erro: {STATE.metricas.get('ultimo_erro', 'nenhum')}",
+            f"Alertas críticos no último ciclo: {metricas.get('alertas_criticos', 0)}\n"
+            f"Último erro: {metricas.get('ultimo_erro', 'nenhum')}",
             disable_web_page_preview=True,
         )
     except Exception as e:
-        STATE.metricas["ultimo_erro"] = str(e)
-        STATE.metricas["varredura_em_andamento"] = False
-        STATE.persistir()
+        metricas = carregar_metricas()
+        metricas["ultimo_erro"] = str(e)
+        metricas["varredura_em_andamento"] = False
+        salvar_metricas(metricas)
         await update.message.reply_text(f"❌ Erro ao executar o radar: {e}", disable_web_page_preview=True)
+
+
+async def _startup_scan_with_delay():
+    await asyncio.sleep(3)
+    if not SCAN_LOCK.locked():
+        await _scheduled_scan()
 
 
 async def post_init(application):
@@ -1662,12 +1764,19 @@ async def post_init(application):
         _scheduled_scan,
         "interval",
         seconds=RADAR_INTERVAL_SECONDS,
-        next_run_time=datetime.now(),
+        next_run_time=datetime.now() + timedelta(seconds=RADAR_INTERVAL_SECONDS),
         id="radar_scan",
         replace_existing=True,
     )
     scheduler.start()
     application.bot_data["scheduler"] = scheduler
+
+    metricas = carregar_metricas()
+    metricas["varredura_em_andamento"] = True
+    metricas["fontes_monitoradas"] = metricas.get("fontes_monitoradas", 0) or total_fontes_monitoradas()
+    salvar_metricas(metricas)
+
+    asyncio.create_task(_startup_scan_with_delay())
 
 
 async def post_shutdown(application):
