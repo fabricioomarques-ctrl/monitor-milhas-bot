@@ -1,70 +1,74 @@
-import json
-import os
-import time
+from datetime import datetime, timedelta
 
 from config import JANELA_REPETICAO_HORAS
 
-ARQUIVO_ALERTAS = "promocoes_enviadas.json"
-MAX_ITENS = 10000
-JANELA_REPETICAO_SEGUNDOS = JANELA_REPETICAO_HORAS * 3600
+
+def _parse_data(valor):
+    if not valor:
+        return None
+
+    if isinstance(valor, datetime):
+        return valor
+
+    formatos = [
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d",
+    ]
+
+    for fmt in formatos:
+        try:
+            return datetime.strptime(str(valor), fmt)
+        except Exception:
+            continue
+
+    return None
 
 
-def _normalizar_base(data):
-    if isinstance(data, dict):
-        saida = {}
-        for chave, valor in data.items():
-            try:
-                saida[str(chave)] = float(valor)
-            except Exception:
-                continue
-        return saida
+def _normalizar_texto(texto):
+    if not texto:
+        return ""
 
-    if isinstance(data, list):
-        agora = time.time()
-        return {str(item): agora for item in data}
-
-    return {}
+    return " ".join(str(texto).lower().strip().split())
 
 
-def carregar_alertas_enviados() -> dict:
-    if not os.path.exists(ARQUIVO_ALERTAS):
-        return {}
+def _assinatura_promocao(promo):
+    titulo = _normalizar_texto(promo.get("title", ""))
+    link = _normalizar_texto(promo.get("link", ""))
+    tipo = _normalizar_texto(promo.get("type", ""))
+    programa = _normalizar_texto(promo.get("program", ""))
 
-    try:
-        with open(ARQUIVO_ALERTAS, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        return limpar_expirados(_normalizar_base(data))
-    except Exception:
-        return {}
+    return f"{tipo}|{programa}|{titulo}|{link}"
 
 
-def salvar_alertas_enviados(alertas: dict) -> None:
-    base = limpar_expirados(dict(alertas))
+def deduplicar(promocoes):
+    if not isinstance(promocoes, list):
+        return []
 
-    if len(base) > MAX_ITENS:
-        itens_ordenados = sorted(base.items(), key=lambda x: x[1], reverse=True)
-        base = dict(itens_ordenados[:MAX_ITENS])
+    janela = timedelta(hours=JANELA_REPETICAO_HORAS)
 
-    with open(ARQUIVO_ALERTAS, "w", encoding="utf-8") as f:
-        json.dump(base, f, ensure_ascii=False, indent=2)
+    promocoes_ordenadas = sorted(
+        promocoes,
+        key=lambda p: _parse_data(p.get("created_at")) or datetime.min,
+        reverse=True,
+    )
 
+    resultado = []
+    vistos = {}
 
-def limpar_expirados(alertas: dict) -> dict:
-    agora = time.time()
+    for promo in promocoes_ordenadas:
+        assinatura = _assinatura_promocao(promo)
+        data_atual = _parse_data(promo.get("created_at")) or datetime.now()
 
-    return {
-        chave: timestamp
-        for chave, timestamp in alertas.items()
-        if (agora - float(timestamp)) < JANELA_REPETICAO_SEGUNDOS
-    }
+        if assinatura not in vistos:
+            vistos[assinatura] = data_atual
+            resultado.append(promo)
+            continue
 
+        ultima_data = vistos[assinatura]
 
-def foi_enviado_recentemente(chave: str, alertas: dict) -> bool:
-    alertas_limpos = limpar_expirados(alertas)
-    return chave in alertas_limpos
+        if abs(ultima_data - data_atual) > janela:
+            vistos[assinatura] = data_atual
+            resultado.append(promo)
 
-
-def registrar_envio(chave: str, alertas: dict) -> dict:
-    alertas[chave] = time.time()
-    return alertas
+    return resultado
