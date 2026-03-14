@@ -33,7 +33,7 @@ JANELA_REPETICAO_HORAS = int(os.getenv("JANELA_REPETICAO_HORAS", "24"))
 PROMOCOES_FILE = "promocoes_enviadas.json"
 METRICS_FILE = "dashboard_metrics.json"
 
-REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "12"))
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "20"))
 MAX_RANKING = int(os.getenv("MAX_RANKING", "10"))
 
 if not TELEGRAM_TOKEN:
@@ -54,38 +54,36 @@ FONTES_RSS = [
 ]
 
 # =========================================================
-# PÁGINAS OFICIAIS MONITORADAS
+# FONTES OFICIAIS ESTÁVEIS
 # =========================================================
 
 FONTES_OFICIAIS = [
     # Smiles
     {"program": "Smiles", "type_hint": "milheiro", "url": "https://www.smiles.com.br/home"},
-    {"program": "Smiles", "type_hint": "milheiro", "url": "https://www.smiles.com.br/clube-smiles/"},
-    {"program": "Smiles", "type_hint": "milheiro", "url": "https://www.smiles.com.br/clube-smiles/super-oferta"},
-    {"program": "Smiles", "type_hint": "transferencias", "url": "https://www.smiles.com.br/portal/promocoes/bancos-aniversario-passageiro-de-primeira-2025"},
-    {"program": "Smiles", "type_hint": "transferencias", "url": "https://www.smiles.com.br/portal/clube-smiles-day/bancos-ate-90-pc-bonus"},
-    {"program": "Smiles", "type_hint": "transferencias", "url": "https://www.smiles.com.br/portal/promocoes/bancos-aniversario-gol-2026"},
+    {"program": "Smiles", "type_hint": "milheiro", "url": "https://www.smiles.com.br/clube-smiles"},
+    {"program": "Smiles", "type_hint": "transferencias", "url": "https://www.smiles.com.br/promocoes"},
+
     # LATAM Pass
-    {"program": "LATAM Pass", "type_hint": "passagens", "url": "https://latampass.com/"},
-    {"program": "LATAM Pass", "type_hint": "milheiro", "url": "https://latampass.com/facilidades/compra-milhas/lp?pt=pp"},
+    {"program": "LATAM Pass", "type_hint": "passagens", "url": "https://latampass.latam.com/"},
+    {"program": "LATAM Pass", "type_hint": "milheiro", "url": "https://latampass.latam.com/pt_br/comprar-milhas.html"},
+
+    # TudoAzul
+    {"program": "TudoAzul", "type_hint": "passagens", "url": "https://www.voeazul.com.br/br/pt/ofertas"},
+    {"program": "TudoAzul", "type_hint": "milheiro", "url": "https://www.voeazul.com.br/br/pt/programa-fidelidade/clube-azul"},
+
     # Livelo
     {"program": "Livelo", "type_hint": "transferencias", "url": "https://www.livelo.com.br/"},
     {"program": "Livelo", "type_hint": "milheiro", "url": "https://www.livelo.com.br/clube"},
-    {"program": "Livelo", "type_hint": "milheiro", "url": "https://www.livelo.com.br/compra-de-pontos/produto/LIVCompraDePontos"},
-    {"program": "Livelo", "type_hint": "passagens", "url": "https://www.livelo.com.br/viagens/passagens"},
+
     # Esfera
     {"program": "Esfera", "type_hint": "transferencias", "url": "https://www.esfera.com.vc/"},
     {"program": "Esfera", "type_hint": "milheiro", "url": "https://www.esfera.com.vc/clube"},
-    {"program": "Esfera", "type_hint": "milheiro", "url": "https://www.esfera.com.vc/p/compra-de-pontos/e000100033"},
-    # Azul / TudoAzul
-    {"program": "TudoAzul", "type_hint": "passagens", "url": "https://www.voeazul.com.br/br/pt/ofertas/passagens"},
-    {"program": "TudoAzul", "type_hint": "milheiro", "url": "https://www.voeazul.com.br/br/pt/programa-fidelidade/clube-azul"},
-    {"program": "TudoAzul", "type_hint": "milheiro", "url": "https://www.voeazul.com.br/br/pt/ofertas/adesao-clube"},
-    {"program": "TudoAzul", "type_hint": "milheiro", "url": "https://www.voeazul.com.br/br/pt/ofertas/adesao-clube-relampago"},
-    {"program": "TudoAzul", "type_hint": "passagens", "url": "https://www.voeazul.com.br/br/pt/ofertas/facilidades"},
-    {"program": "TudoAzul", "type_hint": "passagens", "url": "https://www.voeazul.com.br/br/pt/ofertas/mes-do-consumidor"},
-    # Internacionais
-    {"program": "Iberia", "type_hint": "passagens", "url": "https://www.iberia.com/br/voos-baratos/"},
+
+    # ALL Accor
+    {"program": "ALL Accor", "type_hint": "transferencias", "url": "https://all.accor.com/loyalty-program/index.pt.shtml"},
+
+    # Iberia
+    {"program": "Iberia", "type_hint": "passagens", "url": "https://www.iberia.com/br/ofertas/"},
 ]
 
 # =========================================================
@@ -97,6 +95,7 @@ def _ensure_json_file(path: str, default: Any) -> None:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(default, f, ensure_ascii=False, indent=2)
 
+
 def _load_json(path: str, default: Any) -> Any:
     _ensure_json_file(path, default)
     try:
@@ -105,18 +104,22 @@ def _load_json(path: str, default: Any) -> Any:
     except Exception:
         return default
 
+
 def _save_json(path: str, data: Any) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
 
 def carregar_promocoes() -> list:
     data = _load_json(PROMOCOES_FILE, [])
     return data if isinstance(data, list) else []
 
+
 def salvar_promocoes(promocoes: list) -> None:
     if not isinstance(promocoes, list):
         promocoes = []
     _save_json(PROMOCOES_FILE, promocoes)
+
 
 def carregar_metricas() -> dict:
     data = _load_json(
@@ -132,6 +135,7 @@ def carregar_metricas() -> dict:
         },
     )
     return data if isinstance(data, dict) else {}
+
 
 def salvar_metricas(metricas: dict) -> None:
     if not isinstance(metricas, dict):
@@ -163,8 +167,10 @@ def _parse_data(valor):
 
     return None
 
+
 def _norm_assinatura(texto):
     return " ".join(str(texto or "").lower().strip().split())
+
 
 def _assinatura(promo: dict) -> str:
     return "|".join(
@@ -175,6 +181,7 @@ def _assinatura(promo: dict) -> str:
             _norm_assinatura(promo.get("link")),
         ]
     )
+
 
 def deduplicar(promocoes: list) -> list:
     if not isinstance(promocoes, list):
@@ -216,9 +223,9 @@ HEADERS = {
     )
 }
 
+
 def _extrair_texto_html(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
-
     partes = []
 
     if soup.title and soup.title.get_text(strip=True):
@@ -239,6 +246,7 @@ def _extrair_texto_html(html: str) -> str:
     texto = " ".join(partes)
     texto = re.sub(r"\s+", " ", texto).strip()
     return texto[:3000]
+
 
 def coletar_rss():
     itens = []
@@ -264,6 +272,7 @@ def coletar_rss():
             falhas[url] = str(e)
 
     return itens, falhas
+
 
 def coletar_paginas_oficiais():
     itens = []
@@ -292,6 +301,7 @@ def coletar_paginas_oficiais():
             falhas[url] = str(e)
 
     return itens, falhas
+
 
 def coletar_todas_fontes():
     itens_rss, falhas_rss = coletar_rss()
@@ -325,19 +335,42 @@ PROGRAMAS = [
 ]
 
 BANCOS = [
-    "itau", "itaú", "bradesco", "santander", "banco do brasil", "bb",
-    "caixa", "c6", "inter", "xp", "btg", "neon", "nubank", "sicoob", "sicredi",
-    "amex", "american express",
+    "itau",
+    "itaú",
+    "bradesco",
+    "santander",
+    "banco do brasil",
+    "bb",
+    "caixa",
+    "c6",
+    "inter",
+    "xp",
+    "btg",
+    "neon",
+    "nubank",
+    "sicoob",
+    "sicredi",
+    "amex",
+    "american express",
 ]
 
 RUIDO = [
-    "deixe um comentário", "deixe um comentario", "publicidade",
-    "saiba mais", "10 horas atrás", "horas atrás", "vale a pena",
-    "review", "guia", "dicas",
+    "deixe um comentário",
+    "deixe um comentario",
+    "publicidade",
+    "saiba mais",
+    "10 horas atrás",
+    "horas atrás",
+    "vale a pena",
+    "review",
+    "guia",
+    "dicas",
 ]
+
 
 def _clean_spaces(texto: str) -> str:
     return re.sub(r"\s+", " ", str(texto or "")).strip()
+
 
 def limpar_titulo(texto: str) -> str:
     t = str(texto or "").lower()
@@ -352,12 +385,15 @@ def limpar_titulo(texto: str) -> str:
     t = _clean_spaces(t)
     return t
 
+
 def _norm(texto: str) -> str:
     return limpar_titulo(texto).lower()
+
 
 def _has_any(texto: str, palavras: list[str]) -> bool:
     texto = _norm(texto)
     return any(p in texto for p in palavras)
+
 
 def _detect_program(texto: str, program_hint: str | None = None) -> str:
     if program_hint:
@@ -390,11 +426,13 @@ def _detect_program(texto: str, program_hint: str | None = None) -> str:
 
     return "Programa não identificado"
 
+
 def _detectar_bonus_alto(texto: str) -> int:
     t = _norm(texto)
     achados = re.findall(r"(\d{2,3})\s*%", t)
     bonus = [int(x) for x in achados if x.isdigit()]
     return max(bonus) if bonus else 0
+
 
 def _detect_type(texto: str, type_hint: str | None = None):
     t = _norm(texto)
@@ -402,16 +440,12 @@ def _detect_type(texto: str, type_hint: str | None = None):
     if _has_any(t, RUIDO):
         return None
 
-    if type_hint in {"milheiro", "transferencias", "passagens"}:
-        # se a página oficial tiver pista clara, usamos como prioridade
-        hinted = type_hint
-    else:
-        hinted = None
+    hinted = type_hint if type_hint in {"milheiro", "transferencias", "passagens"} else None
 
     if "milheiro" in t or "maxmilhas" in t:
         return "milheiro"
 
-    if "compra de pontos" in t or "compra milhas" in t:
+    if "compra de pontos" in t or "compra milhas" in t or "comprar milhas" in t:
         return "milheiro"
 
     if (
@@ -423,15 +457,22 @@ def _detect_type(texto: str, type_hint: str | None = None):
     if (
         ("milhas" in t or "pontos" in t or "avios" in t)
         and (
-            "passagens" in t or "passagem" in t or "trechos" in t or "voos" in t
-            or "resgate" in t or "ida e volta" in t or "o trecho" in t
+            "passagens" in t
+            or "passagem" in t
+            or "trechos" in t
+            or "voos" in t
+            or "resgate" in t
+            or "ida e volta" in t
+            or "o trecho" in t
             or "voos baratos" in t
+            or "ofertas" in t
         )
         and _has_any(t, PROGRAMAS)
     ):
         return "passagens"
 
     return hinted
+
 
 def _score_transferencias(texto: str) -> float:
     bonus = _detectar_bonus_alto(texto)
@@ -449,6 +490,7 @@ def _score_transferencias(texto: str) -> float:
     if bonus >= 60:
         return 7.5
     return 7.0
+
 
 def _score_passagens(texto: str) -> float:
     t = _norm(texto)
@@ -470,6 +512,7 @@ def _score_passagens(texto: str) -> float:
     if pontos and pontos <= 25000:
         return 8.0
     return 7.5
+
 
 def _score_milheiro(texto: str) -> float:
     t = _norm(texto)
@@ -494,6 +537,7 @@ def _score_milheiro(texto: str) -> float:
         return 8.0
     return 7.0
 
+
 def _classificacao(score: float) -> str:
     if score >= 9:
         return "🔴 PROMOÇÃO IMPERDÍVEL"
@@ -501,9 +545,11 @@ def _classificacao(score: float) -> str:
         return "🟡 PROMOÇÃO MUITO BOA"
     return "🟢 PROMOÇÃO BOA"
 
+
 def _build_id(titulo: str, link: str, tipo: str) -> str:
     base = f"{tipo}|{limpar_titulo(titulo)}|{str(link or '').strip()}"
     return hashlib.md5(base.encode("utf-8")).hexdigest()
+
 
 def transformar_em_promocoes(itens: list) -> list:
     promocoes = []
@@ -575,7 +621,9 @@ class RadarState:
         salvar_promocoes(self.promocoes)
         salvar_metricas(self.metricas)
 
+
 STATE = RadarState()
+
 
 def executar_varredura():
     itens, falhas = coletar_todas_fontes()
@@ -610,6 +658,7 @@ def executar_varredura():
         "detectadas": len(promocoes_detectadas),
     }
 
+
 def get_state_snapshot():
     STATE.promocoes = carregar_promocoes()
     STATE.metricas = carregar_metricas()
@@ -619,11 +668,13 @@ def get_state_snapshot():
         "metricas": STATE.metricas,
     }
 
+
 def get_promocoes_por_tipo(tipo: str, limit: int = 5) -> list:
     snapshot = get_state_snapshot()
     promos = [p for p in snapshot["promocoes"] if p.get("type") == tipo]
     promos = sorted(promos, key=lambda p: p.get("score", 0), reverse=True)
     return promos[:limit]
+
 
 def get_ranking(limit: int = 5) -> list:
     snapshot = get_state_snapshot()
@@ -658,6 +709,7 @@ def build_status_text(interval_seconds: int) -> str:
         f"⚠️ Último erro: {metricas.get('ultimo_erro', 'nenhum')}"
     )
 
+
 def build_debug_text() -> str:
     snapshot = get_state_snapshot()
     metricas = snapshot["metricas"]
@@ -690,12 +742,14 @@ def build_debug_text() -> str:
 SCAN_LOCK = asyncio.Lock()
 _APP = None
 
+
 def is_admin(update: Update) -> bool:
     if not ADMIN_IDS:
         return True
     if not update.effective_chat:
         return False
     return update.effective_chat.id in ADMIN_IDS
+
 
 def format_card(promo: dict) -> str:
     texto = "💰 PROMOÇÃO CONFIRMADA\n\n"
@@ -709,6 +763,7 @@ def format_card(promo: dict) -> str:
     texto += "Link:\n"
     texto += str(promo.get("link", ""))
     return texto
+
 
 def format_lista(titulo: str, promocoes: list) -> str:
     if not promocoes:
@@ -727,6 +782,7 @@ def format_lista(titulo: str, promocoes: list) -> str:
         partes.append(str(promo.get("link", "")))
     partes.append("━━━━━━━━━━━━━━")
     return "\n".join(partes)
+
 
 async def _run_scan() -> dict:
     async with SCAN_LOCK:
@@ -752,6 +808,7 @@ async def _run_scan() -> dict:
             "novas": len(novas),
         }
 
+
 async def _scheduled_scan():
     try:
         await _run_scan()
@@ -759,6 +816,7 @@ async def _scheduled_scan():
         STATE.metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         STATE.metricas["ultimo_erro"] = str(e)
         STATE.persistir()
+
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -771,6 +829,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/status",
         disable_web_page_preview=True,
     )
+
 
 async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -785,11 +844,13 @@ async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         disable_web_page_preview=True,
     )
 
+
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         build_status_text(RADAR_INTERVAL_SECONDS),
         disable_web_page_preview=True,
     )
+
 
 async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
@@ -798,12 +859,14 @@ async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(build_debug_text(), disable_web_page_preview=True)
 
+
 async def cmd_promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_ranking(limit=5)
     await update.message.reply_text(
         format_lista("🔥 Últimas promoções", promos),
         disable_web_page_preview=True,
     )
+
 
 async def cmd_transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_promocoes_por_tipo("transferencias", limit=5)
@@ -817,12 +880,14 @@ async def cmd_transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await update.message.reply_text(texto, disable_web_page_preview=True)
 
+
 async def cmd_passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_promocoes_por_tipo("passagens", limit=5)
     await update.message.reply_text(
         format_lista("✈️ Últimos alertas de passagens", promos),
         disable_web_page_preview=True,
     )
+
 
 async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_ranking(limit=MAX_RANKING if MAX_RANKING < 6 else 5)
@@ -845,6 +910,7 @@ async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     await update.message.reply_text("\n".join(linhas), disable_web_page_preview=True)
+
 
 async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
@@ -880,6 +946,7 @@ async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True,
         )
 
+
 async def post_init(application):
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
@@ -893,10 +960,12 @@ async def post_init(application):
     scheduler.start()
     application.bot_data["scheduler"] = scheduler
 
+
 async def post_shutdown(application):
     scheduler = application.bot_data.get("scheduler")
     if scheduler:
         scheduler.shutdown(wait=False)
+
 
 def main():
     global _APP
@@ -920,6 +989,7 @@ def main():
     _APP.add_handler(CommandHandler("testeradar", cmd_testeradar))
 
     _APP.run_polling(drop_pending_updates=False)
+
 
 if __name__ == "__main__":
     main()
