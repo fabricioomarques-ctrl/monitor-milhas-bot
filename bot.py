@@ -258,6 +258,39 @@ RANKING_REJECT_TERMS = [
     "edicao do radar",
     "seja bem-vindo",
     "seja bem vindo",
+    "compre pontos",
+    "compra de pontos",
+    "comprar pontos",
+    "criar conta",
+    "fazer login",
+    "boas vindas",
+    "boas-vindas",
+    "acelere seus benefícios",
+    "acelere seus beneficios",
+    "reativacao",
+    "reativação",
+    "signature",
+    "assine",
+    "assinatura",
+    "card",
+    "credit card",
+    "welcome offer",
+    "signup",
+    "sign up",
+]
+
+EDITORIAL_GENERIC_TERMS = [
+    "confira trechos",
+    "no artigo de hoje",
+    "separamos",
+    "encontramos oportunidades",
+    "está no lugar certo",
+    "planejando aquela viagem",
+    "resumo da semana",
+    "resumo do dia",
+    "edição do radar",
+    "última chamada",
+    "ultima chamada",
 ]
 
 PROGRAMAS = [
@@ -475,6 +508,11 @@ def build_short_title(title: str, summary: str = "", link: str = "", max_len: in
 
     base = normalize_spaces(base)
     return sentence_crop(base, max_len=max_len)
+
+
+def is_editorial_generic(title: str, summary: str) -> bool:
+    texto = clean_text(f"{title} {summary}").lower()
+    return any(term in texto for term in EDITORIAL_GENERIC_TERMS)
 
 # =========================================================
 # STORAGE
@@ -1177,6 +1215,28 @@ def _peso_categoria(tipo: str) -> float:
     return 0.3
 
 
+def _bonus_fonte(source_kind: str) -> float:
+    if source_kind == "early_detect":
+        return 0.45
+    if source_kind == "official":
+        return 0.35
+    if source_kind == "promo_page":
+        return 0.30
+    if source_kind == "sitemap":
+        return 0.22
+    if source_kind == "marketplace":
+        return 0.20
+    return 0.0
+
+
+def _penalidade_editorial(title: str, summary: str, source_kind: str) -> float:
+    if source_kind != "rss":
+        return 0.0
+    if is_editorial_generic(title, summary):
+        return 0.35
+    return 0.0
+
+
 def _build_id(titulo: str, link: str, tipo: str, program: str = "", bonus: int = 0) -> str:
     base_parts = [tipo, titulo_normalizado(titulo)]
 
@@ -1248,10 +1308,13 @@ def transformar_em_promocoes(itens: list) -> list:
         milheiro = _detectar_milheiro(texto_base)
         sweet_spot = _detectar_sweet_spot(texto_base)
         prioridade = _alerta_prioridade(tipo, score, bonus, milheiro, sweet_spot)
-        ranking_score = round(score * _peso_categoria(tipo), 2)
 
-        if source_kind in {"sitemap", "official", "promo_page", "early_detect"}:
-            ranking_score = round(ranking_score + 0.15, 2)
+        ranking_score = round(
+            score * _peso_categoria(tipo)
+            + _bonus_fonte(source_kind)
+            - _penalidade_editorial(titulo_curto, summary, source_kind),
+            2,
+        )
 
         promo = {
             "id": _build_id(titulo_curto, link, tipo, program or "", bonus),
@@ -1315,12 +1378,6 @@ def total_fontes_monitoradas() -> int:
 
 
 def executar_varredura():
-    """
-    Correção 1:
-    Não zera métricas úteis no início.
-    Só marca varredura em andamento e preserva o último estado consistente
-    até o final da consolidação.
-    """
     metricas = carregar_metricas()
     metricas["varredura_em_andamento"] = True
     metricas["fontes_monitoradas"] = metricas.get("fontes_monitoradas", 0) or total_fontes_monitoradas()
@@ -1380,10 +1437,6 @@ def executar_varredura():
 
 
 def get_state_snapshot():
-    """
-    Correção 2:
-    Todos os comandos leem exatamente a mesma fotografia persistida.
-    """
     promocoes = carregar_promocoes()
     metricas = carregar_metricas()
 
@@ -1457,10 +1510,22 @@ def get_ranking(limit: int = 5) -> list:
     filtradas = []
     for p in promos:
         titulo = clean_text(p.get("title", "")).lower()
+        resumo = clean_text(p.get("title", "")).lower()
+        link = clean_text(p.get("link", "")).lower()
+
         if any(term in titulo for term in RANKING_REJECT_TERMS):
             continue
         if titulo.startswith("http://") or titulo.startswith("https://"):
             continue
+        if any(term in link for term in ["reativacao", "bonus-200", "signature"]):
+            continue
+
+        if p.get("type") == "transferencias" and int(p.get("bonus_detectado") or 0) < 40:
+            continue
+
+        if p.get("type") == "milheiro" and p.get("milheiro_detectado") is None:
+            continue
+
         filtradas.append(p)
 
     filtradas = deduplicar(filtradas)
