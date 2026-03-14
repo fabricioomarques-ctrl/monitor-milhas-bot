@@ -96,7 +96,6 @@ PROMO_PAGES = [
     {"program": "Livelo", "type_hint": "transferencias", "url": "https://www.livelo.com.br"},
 ]
 
-# Detector antecipado mais agressivo
 EARLY_DETECT_URLS = [
     {"program": "Smiles", "type_hint": None, "url": "https://www.smiles.com.br/promocoes"},
     {"program": "Smiles", "type_hint": "milheiro", "url": "https://www.smiles.com.br/clube-smiles"},
@@ -215,6 +214,22 @@ ANTI_SPAM_TERMS = [
     "melhores cartoes",
     "promoções que terminam hoje",
     "promocoes que terminam hoje",
+]
+
+RANKING_REJECT_TERMS = [
+    "alerta ppv",
+    "radar ppv",
+    "no alerta ppv de hoje",
+    "no alerta de hoje",
+    "resumo das promoções",
+    "resumo promocoes",
+    "resumo da semana",
+    "última chamada",
+    "ultima chamada",
+    "edição do radar",
+    "edicao do radar",
+    "seja bem-vindo",
+    "seja bem vindo",
 ]
 
 PROGRAMAS = [
@@ -357,11 +372,9 @@ def is_strict_transfer_post(texto: str) -> bool:
 
 def is_spammy_generic_post(title: str, summary: str) -> bool:
     texto = clean_text(f"{title} {summary}").lower()
-
     if any(term in texto for term in ANTI_SPAM_TERMS):
         if not re.search(r"(\d{2,3})\s*%|r\$\s*\d+[,.]?\d*|\b\d{3,6}\b", texto):
             return True
-
     return False
 
 
@@ -379,6 +392,30 @@ def title_from_url(url: str) -> str:
         return ""
 
 
+def cleanup_title_for_output(texto: str) -> str:
+    texto = clean_text(texto)
+    texto = strip_noise_phrases(texto)
+
+    padrões = [
+        r"^alerta de passagens ppv[!:\-\s]*",
+        r"^alerta passagens ppv[!:\-\s]*",
+        r"^radar ppv[!:\-\s]*",
+        r"^no alerta ppv de hoje[,:\-\s]*",
+        r"^no alerta de hoje[,:\-\s]*",
+        r"^resumo das promoções[,:\-\s]*",
+        r"^resumo promocoes[,:\-\s]*",
+        r"^última chamada[!:\-\s]*",
+        r"^ultima chamada[!:\-\s]*",
+        r"^seja bem[- ]vindo[a]?\s+a\s+mais\s+uma\s+edição\s+do\s+.*",
+        r"^seja bem[- ]vindo[a]?\s+a\s+mais\s+uma\s+edicao\s+do\s+.*",
+    ]
+    for padrao in padrões:
+        texto = re.sub(padrao, "", texto, flags=re.I).strip()
+
+    texto = re.sub(r"\s+", " ", texto).strip(" -:,.")
+    return texto
+
+
 def build_short_title(title: str, summary: str = "", link: str = "", max_len: int = 140) -> str:
     title = clean_text(title)
     summary = clean_text(summary)
@@ -386,8 +423,8 @@ def build_short_title(title: str, summary: str = "", link: str = "", max_len: in
     if title.startswith("http://") or title.startswith("https://"):
         title = title_from_url(title)
 
-    title = strip_noise_phrases(title)
-    summary = strip_noise_phrases(summary)
+    title = cleanup_title_for_output(title)
+    summary = cleanup_title_for_output(summary)
 
     if summary.startswith("http://") or summary.startswith("https://"):
         summary = title_from_url(summary)
@@ -1153,6 +1190,10 @@ def transformar_em_promocoes(itens: list) -> list:
         if titulo_curto.startswith("http://") or titulo_curto.startswith("https://"):
             titulo_curto = title_from_url(titulo_curto)
 
+        titulo_curto = cleanup_title_for_output(titulo_curto)
+        if not titulo_curto:
+            continue
+
         program = _detect_program(texto_base, program_hint=program_hint)
 
         if tipo == "passagens" and not program:
@@ -1179,7 +1220,6 @@ def transformar_em_promocoes(itens: list) -> list:
         prioridade = _alerta_prioridade(tipo, score, bonus, milheiro, sweet_spot)
         ranking_score = round(score * _peso_categoria(tipo), 2)
 
-        # detector antecipado ganha um pequeno peso extra
         if source_kind in {"sitemap", "official", "promo_page", "early_detect"}:
             ranking_score = round(ranking_score + 0.15, 2)
 
@@ -1312,6 +1352,8 @@ def get_promocoes_por_tipo(tipo: str, limit: int = 5) -> list:
             "marriott", "bonvoy", "brilliant card", "cartão", "cartao",
             "tier point", "tier points", "status bonus", "american airlines flights",
             "ba adds tier point", "tier bonuses",
+            "compre pontos", "compra de pontos", "reativacao", "reativação",
+            "criar conta", "fazer login", "boas vindas", "boas-vindas",
         ]
         filtradas = []
         for p in promos:
@@ -1335,7 +1377,7 @@ def get_ranking(limit: int = 5) -> list:
     filtradas = []
     for p in promos:
         titulo = clean_text(p.get("title", "")).lower()
-        if any(term in titulo for term in ANTI_SPAM_TERMS):
+        if any(term in titulo for term in RANKING_REJECT_TERMS):
             continue
         if titulo.startswith("http://") or titulo.startswith("https://"):
             continue
