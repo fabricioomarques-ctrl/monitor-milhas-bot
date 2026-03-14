@@ -196,49 +196,100 @@ def deduplicar(promocoes: list) -> list:
     return resultado
 
 # =========================================================
-# LIMPEZA / NORMALIZAÇÃO DE TEXTO
+# LIMPEZA / NORMALIZAÇÃO
 # =========================================================
+
+NOISE_FRAGMENTS = [
+    "radar ppv!",
+    "radar ppv",
+    "alerta de passagens ppv!",
+    "alerta de passagens ppv",
+    "seja bem-vindo a mais uma edição do radar ppv",
+    "a última edição do radar ppv da semana chegou",
+    "a promoção do",
+    "a smiles está oferecendo",
+    "o smiles voltou a oferecer",
+    "nesta oferta, é possível",
+    "confira os detalhes para participar e aproveitar a oferta",
+    "atenção: a busca dessas emissões foi realizada no momento da produção",
+    "está planejando aquela viagem dos sonhos",
+    "então está no lugar certo",
+    "no artigo de hoje, separamos",
+    "o post",
+]
 
 def clean_text(texto: str) -> str:
     texto = html.unescape(str(texto or ""))
     texto = texto.replace("&#8230;", ".")
     texto = texto.replace("\u2026", ".")
     texto = BeautifulSoup(texto, "html.parser").get_text(" ", strip=True)
-    texto = re.sub(r"https?://\S+", " ", texto)
-    texto = re.sub(r"<[^>]+>", " ", texto)
-    texto = re.sub(r"\s+", " ", texto).strip()
+    texto = re.sub(r'https?://\S+', ' ', texto)
+    texto = re.sub(r'<[^>]+>', ' ', texto)
+    texto = re.sub(r'\s+', ' ', texto).strip()
     return texto
 
 
-def clean_title(texto: str) -> str:
-    t = clean_text(texto).lower()
-
-    t = re.sub(r"\b\d{1,2}\s+de\s+[a-zçãé]+\s+de\s+\d{4}\b", " ", t, flags=re.I)
-    t = re.sub(r"\b\d+\s+horas?\s+atr[aá]s\b", " ", t, flags=re.I)
-    t = re.sub(r"\bsaiba mais\b", " ", t, flags=re.I)
-    t = re.sub(r"\bpublicidade\b", " ", t, flags=re.I)
-    t = re.sub(r"\bdeixe um coment[aá]rio\b", " ", t, flags=re.I)
-    t = re.sub(r"\bsegue valendo!?+\b", " ", t, flags=re.I)
-    t = re.sub(r"\bprorrogou!?+\b", " ", t, flags=re.I)
-    t = re.sub(r"\bno post\b", " ", t, flags=re.I)
-    t = re.sub(r"\bconfira os detalhes\b", " ", t, flags=re.I)
-    t = re.sub(r"[|]+", " ", t)
-    t = re.sub(r"\s+", " ", t).strip()
-
-    return t
+def normalize_spaces(texto: str) -> str:
+    return re.sub(r"\s+", " ", str(texto or "")).strip()
 
 
-def compact_text(texto: str, max_len: int = 140) -> str:
-    texto = clean_text(texto)
+def strip_noise_phrases(texto: str) -> str:
+    t = texto
+    low = t.lower()
+    for frag in NOISE_FRAGMENTS:
+        idx = low.find(frag)
+        if idx != -1:
+            t = t[:idx].strip()
+            low = t.lower()
+    return normalize_spaces(t)
+
+
+def sentence_crop(texto: str, max_len: int = 170) -> str:
+    texto = normalize_spaces(texto)
     if len(texto) <= max_len:
         return texto
+
+    candidatos = [". ", "! ", "? ", " - ", " – ", ": "]
+    corte = -1
+    for sep in candidatos:
+        pos = texto.rfind(sep, 0, max_len)
+        corte = max(corte, pos)
+
+    if corte > 40:
+        return texto[:corte + 1].strip()
+
     corte = texto[:max_len].rsplit(" ", 1)[0].strip()
     return corte + "..."
 
 
-def human_title(texto: str, max_len: int = 160) -> str:
+def build_short_title(title: str, summary: str = "", max_len: int = 170) -> str:
+    title = clean_text(title)
+    summary = clean_text(summary)
+
+    title = strip_noise_phrases(title)
+    summary = strip_noise_phrases(summary)
+
+    if not title:
+        base = summary
+    else:
+        base = title
+
+    base = re.sub(r"\bsaiba mais\b", " ", base, flags=re.I)
+    base = re.sub(r"\bpublicidade\b", " ", base, flags=re.I)
+    base = re.sub(r"\bdeixe um coment[aá]rio\b", " ", base, flags=re.I)
+    base = re.sub(r"\bsegue valendo!?+\b", " ", base, flags=re.I)
+    base = re.sub(r"\bprorrogou!?+\b", " ", base, flags=re.I)
+    base = re.sub(r"\b\d+\s+horas?\s+atr[aá]s\b", " ", base, flags=re.I)
+    base = re.sub(r"\b\d{1,2}\s+de\s+[a-zçãé]+\s+de\s+\d{4}\b", " ", base, flags=re.I)
+    base = normalize_spaces(base)
+
+    return sentence_crop(base, max_len=max_len)
+
+
+def compact_text(texto: str, max_len: int = 95) -> str:
     texto = clean_text(texto)
-    texto = re.sub(r"\s+", " ", texto).strip()
+    texto = strip_noise_phrases(texto)
+    texto = normalize_spaces(texto)
     if len(texto) <= max_len:
         return texto
     corte = texto[:max_len].rsplit(" ", 1)[0].strip()
@@ -400,7 +451,7 @@ RUIDO = [
 
 
 def _norm(texto: str) -> str:
-    return clean_title(texto).lower()
+    return build_short_title(texto, "", 250).lower()
 
 
 def _has_any(texto: str, palavras: list[str]) -> bool:
@@ -441,16 +492,16 @@ def _detect_program(texto: str, program_hint: str | None = None) -> str:
 
 
 def _detectar_bonus_alto(texto: str) -> int:
-    t = _norm(texto)
+    t = clean_text(texto).lower()
     achados = re.findall(r"(\d{2,3})\s*%", t)
     bonus = [int(x) for x in achados if x.isdigit()]
     return max(bonus) if bonus else 0
 
 
 def _detect_type(texto: str, type_hint: str | None = None):
-    t = _norm(texto)
+    t = clean_text(texto).lower()
 
-    if _has_any(t, RUIDO):
+    if any(r in t for r in RUIDO):
         return None
 
     hinted = type_hint if type_hint in {"milheiro", "transferencias", "passagens"} else None
@@ -463,7 +514,7 @@ def _detect_type(texto: str, type_hint: str | None = None):
 
     if (
         ("transfer" in t or "bônus" in t or "bonus" in t or "bonificada" in t)
-        and (_has_any(t, BANCOS) or _has_any(t, PROGRAMAS))
+        and any(b in t for b in BANCOS + PROGRAMAS)
     ):
         return "transferencias"
 
@@ -480,7 +531,7 @@ def _detect_type(texto: str, type_hint: str | None = None):
             or "voos baratos" in t
             or "ofertas" in t
         )
-        and _has_any(t, PROGRAMAS)
+        and any(p in t for p in PROGRAMAS)
     ):
         return "passagens"
 
@@ -506,7 +557,7 @@ def _score_transferencias(texto: str) -> float:
 
 
 def _score_passagens(texto: str) -> float:
-    t = _norm(texto)
+    t = clean_text(texto).lower()
     numeros = re.findall(r"(\d{3,6})", t)
 
     valores = []
@@ -528,7 +579,7 @@ def _score_passagens(texto: str) -> float:
 
 
 def _score_milheiro(texto: str) -> float:
-    t = _norm(texto)
+    t = clean_text(texto).lower()
     m = re.search(r"r\$\s*(\d+[,.]?\d*)", t)
     if not m:
         return 7.0
@@ -560,7 +611,7 @@ def _classificacao(score: float) -> str:
 
 
 def _build_id(titulo: str, link: str, tipo: str) -> str:
-    base = f"{tipo}|{clean_title(titulo)}|{str(link or '').strip()}"
+    base = f"{tipo}|{build_short_title(titulo, '', 220)}|{str(link or '').strip()}"
     return hashlib.md5(base.encode("utf-8")).hexdigest()
 
 
@@ -570,11 +621,11 @@ def transformar_em_promocoes(itens: list) -> list:
     for item in itens:
         titulo_bruto = item.get("title", "")
         summary = item.get("summary", "")
-        texto_base = f"{titulo_bruto} {summary}".strip()
         link = item.get("link", "")
         type_hint = item.get("type_hint")
         program_hint = item.get("program_hint")
 
+        texto_base = f"{titulo_bruto} {summary}".strip()
         tipo = _detect_type(texto_base, type_hint=type_hint)
         if not tipo:
             continue
@@ -591,10 +642,11 @@ def transformar_em_promocoes(itens: list) -> list:
             score = _score_passagens(texto_base)
 
         bonus_detectado = _detectar_bonus_alto(texto_base)
+        titulo_curto = build_short_title(titulo_bruto, summary, max_len=165)
 
         promo = {
-            "id": _build_id(texto_base, link, tipo),
-            "title": human_title(texto_base, max_len=170),
+            "id": _build_id(titulo_curto, link, tipo),
+            "title": titulo_curto,
             "link": link,
             "type": tipo,
             "program": program,
