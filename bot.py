@@ -6,7 +6,6 @@ import hashlib
 import asyncio
 from datetime import datetime, timedelta
 from typing import Any
-from urllib.parse import urljoin, urlparse
 from xml.etree import ElementTree as ET
 
 import feedparser
@@ -35,23 +34,20 @@ PROMOCOES_FILE = "promocoes_enviadas.json"
 METRICS_FILE = "dashboard_metrics.json"
 
 if not TELEGRAM_TOKEN:
-    raise RuntimeError("VariÃ¡vel TELEGRAM_TOKEN nÃ£o configurada.")
+    raise RuntimeError("Variável TELEGRAM_TOKEN não configurada.")
 if not CANAL_ID:
-    raise RuntimeError("VariÃ¡vel CANAL_ID nÃ£o configurada.")
+    raise RuntimeError("Variável CANAL_ID não configurada.")
 
 # =========================================================
 # FONTES
 # =========================================================
 
 FONTES_RSS = [
-    # Brasil
     "https://passageirodeprimeira.com/feed",
     "https://pontospravoar.com/feed",
     "https://www.melhoresdestinos.com.br/feed",
     "https://aeroin.net/feed",
     "https://www.melhorescartoes.com.br/feed",
-    "https://www.falandodeviagem.com.br/viewtopic.php?f=26&t=13216&start=0&view=print",  # may fail safely
-    # Global milhas / loyalty
     "https://onemileatatime.com/feed/",
     "https://viewfromthewing.com/feed/",
     "https://frequentmiler.com/feed/",
@@ -100,6 +96,14 @@ PUBLIC_MILEAGE_SOURCES = [
     {"program": "Esfera", "url": "https://www.esfera.com.vc/clube"},
 ]
 
+PROMO_PAGES = [
+    {"program": "Smiles", "type_hint": "transferencias", "url": "https://www.smiles.com.br/promocoes"},
+    {"program": "LATAM Pass", "type_hint": "passagens", "url": "https://latampass.latam.com/pt_br/promocoes"},
+    {"program": "TudoAzul", "type_hint": "passagens", "url": "https://www.voeazul.com.br/br/pt/azul-fidelidade/promocoes"},
+    {"program": "Livelo", "type_hint": "transferencias", "url": "https://www.livelo.com.br/promocoes"},
+    {"program": "Esfera", "type_hint": "transferencias", "url": "https://www.esfera.com.vc/promocoes"},
+]
+
 # =========================================================
 # TEXT CLEANING
 # =========================================================
@@ -109,66 +113,119 @@ NOISE_FRAGMENTS = [
     "radar ppv",
     "alerta de passagens ppv!",
     "alerta de passagens ppv",
-    "seja bem-vindo a mais uma ediÃ§Ã£o do radar ppv",
-    "a Ãºltima ediÃ§Ã£o do radar ppv da semana chegou",
-    "a Ãºltima ediÃ§Ã£o do radar ppv",
-    "resumo das promoÃ§Ãµes",
-    "resumo promoÃ§Ãµes",
-    "a promoÃ§Ã£o do",
-    "a smiles estÃ¡ oferecendo",
+    "seja bem-vindo a mais uma edição do radar ppv",
+    "a última edição do radar ppv da semana chegou",
+    "a última edição do radar ppv",
+    "resumo das promoções",
+    "resumo promoções",
+    "a promoção do",
+    "a smiles está oferecendo",
     "o smiles voltou a oferecer",
-    "nesta oferta, Ã© possÃ­vel",
+    "nesta oferta, é possível",
     "confira os detalhes para participar e aproveitar a oferta",
-    "atenÃ§Ã£o: a busca dessas emissÃµes foi realizada no momento da produÃ§Ã£o",
-    "estÃ¡ planejando aquela viagem dos sonhos",
-    "entÃ£o estÃ¡ no lugar certo",
+    "atenção: a busca dessas emissões foi realizada no momento da produção",
+    "está planejando aquela viagem dos sonhos",
+    "então está no lugar certo",
     "no artigo de hoje, separamos",
     "o post",
 ]
 
 GENERIC_TRANSFER_TERMS = [
     "radar ppv",
-    "resumo das promoÃ§Ãµes",
-    "resumo promoÃ§Ãµes",
-    "seja bem-vindo a mais uma ediÃ§Ã£o",
-    "a Ãºltima ediÃ§Ã£o",
-    "ediÃ§Ã£o do radar",
+    "resumo das promoções",
+    "resumo promoções",
+    "seja bem-vindo a mais uma edição",
+    "a última edição",
+    "edição do radar",
 ]
 
 TRANSFER_ACCEPT_TERMS = [
-    "transferÃªncia bonificada", "transferencia bonificada",
-    "acÃºmulo com parceiro", "acumulo com parceiro",
-    "campanhas hÃ­bridas", "campanhas hibridas",
-    "campanha hÃ­brida", "campanha hibrida",
-    "transferÃªncia", "transferencia",
-    "bÃ´nus", "bonus", "bonificada",
-    "envie pontos", "converta pontos", "converta seus pontos",
-    "transfira pontos", "transferir pontos",
+    "transferência bonificada",
+    "transferencia bonificada",
+    "acúmulo com parceiro",
+    "acumulo com parceiro",
+    "campanhas híbridas",
+    "campanhas hibridas",
+    "campanha híbrida",
+    "campanha hibrida",
+    "transferência",
+    "transferencia",
+    "bônus",
+    "bonus",
+    "bonificada",
+    "envie pontos",
+    "converta pontos",
+    "converta seus pontos",
+    "transfira pontos",
+    "transferir pontos",
 ]
 
 TRANSFER_REJECT_TERMS = [
-    "pontos por real gasto", "por real gasto",
-    "varejo", "parceiros", "parceiro varejista",
-    "campanha de acÃºmulo", "campanha de acumulo",
-    "acÃºmulo comum", "acumulo comum",
+    "pontos por real gasto",
+    "por real gasto",
+    "varejo",
+    "parceiros",
+    "parceiro varejista",
+    "campanha de acúmulo",
+    "campanha de acumulo",
+    "acúmulo comum",
+    "acumulo comum",
 ]
 
 PROGRAMAS = [
-    "smiles", "latam pass", "latam", "azul fidelidade", "tudoazul",
-    "livelo", "esfera", "all accor", "krisflyer", "iberia",
-    "tap", "amex", "american express", "flying blue", "avios",
-    "british airways", "delta", "emirates", "qatar", "turkish",
+    "smiles",
+    "clube smiles",
+    "latam",
+    "latam pass",
+    "azul fidelidade",
+    "tudoazul",
+    "clube azul",
+    "livelo",
+    "esfera",
+    "all accor",
+    "accor",
+    "krisflyer",
+    "singapore",
+    "iberia",
+    "avios",
+    "flying blue",
+    "british airways",
+    "tap",
+    "amex",
+    "american express",
 ]
 
 BANCOS = [
-    "itau", "itaÃº", "bradesco", "santander", "banco do brasil", "bb", "caixa",
-    "c6", "inter", "xp", "btg", "neon", "nubank", "sicoob", "sicredi",
-    "amex", "american express",
+    "itau",
+    "itaú",
+    "bradesco",
+    "santander",
+    "banco do brasil",
+    "bb",
+    "caixa",
+    "c6",
+    "inter",
+    "xp",
+    "btg",
+    "neon",
+    "nubank",
+    "sicoob",
+    "sicredi",
+    "amex",
+    "american express",
 ]
 
 RUIDO = [
-    "deixe um comentÃ¡rio", "deixe um comentario", "publicidade", "saiba mais",
-    "10 horas atrÃ¡s", "horas atrÃ¡s", "vale a pena", "review", "guia", "dicas",
+    "deixe um comentário",
+    "deixe um comentario",
+    "publicidade",
+    "saiba mais",
+    "10 horas atrás",
+    "horas atrás",
+    "vale a pena",
+    "review",
+    "guia",
+    "dicas",
 ]
 
 HEADERS = {
@@ -179,12 +236,33 @@ HEADERS = {
 }
 
 def clean_text(texto: str) -> str:
-    texto = html.unescape(str(texto or ""))
+    if not texto:
+        return ""
+
+    texto = str(texto)
+
+    # tenta corrigir textos vindos com encoding ruim
+    try:
+        texto = texto.encode("latin1").decode("utf-8")
+    except Exception:
+        pass
+
+    texto = html.unescape(texto)
     texto = texto.replace("&#8230;", ".")
     texto = texto.replace("\u2026", ".")
     texto = BeautifulSoup(texto, "html.parser").get_text(" ", strip=True)
     texto = re.sub(r'https?://\S+', ' ', texto)
     texto = re.sub(r'<[^>]+>', ' ', texto)
+    texto = re.sub(r'\s+', ' ', texto).strip()
+
+    # remove sobras típicas de encoding quebrado
+    lixo = [
+        "â€¢", "â€", "â€™", "â€œ", "â€\x9d", "Ã", "ð", "Â", "â",
+        "¤", "�"
+    ]
+    for item in lixo:
+        texto = texto.replace(item, " ")
+
     texto = re.sub(r'\s+', ' ', texto).strip()
     return texto
 
@@ -205,7 +283,7 @@ def sentence_crop(texto: str, max_len: int = 170) -> str:
     texto = normalize_spaces(texto)
     if len(texto) <= max_len:
         return texto
-    candidates = [". ", "! ", "? ", " - ", " â ", ": "]
+    candidates = [". ", "! ", "? ", " - ", " – ", ": "]
     cut = -1
     for sep in candidates:
         pos = texto.rfind(sep, 0, max_len)
@@ -222,23 +300,17 @@ def build_short_title(title: str, summary: str = "", max_len: int = 140) -> str:
     summary = strip_noise_phrases(summary)
     base = title if title else summary
     for pat in [
-        r"\bsaiba mais\b", r"\bpublicidade\b", r"\bdeixe um coment[aÃ¡]rio\b",
-        r"\bsegue valendo!?+\b", r"\bprorrogou!?+\b",
-        r"\b\d+\s+horas?\s+atr[aÃ¡]s\b",
-        r"\b\d{1,2}\s+de\s+[a-zÃ§Ã£Ã©]+\s+de\s+\d{4}\b",
+        r"\bsaiba mais\b",
+        r"\bpublicidade\b",
+        r"\bdeixe um coment[aá]rio\b",
+        r"\bsegue valendo!?+\b",
+        r"\bprorrogou!?+\b",
+        r"\b\d+\s+horas?\s+atr[aá]s\b",
+        r"\b\d{1,2}\s+de\s+[a-zçãé]+\s+de\s+\d{4}\b",
     ]:
         base = re.sub(pat, " ", base, flags=re.I)
     base = normalize_spaces(base)
     return sentence_crop(base, max_len=max_len)
-
-def compact_text(texto: str, max_len: int = 95) -> str:
-    texto = clean_text(texto)
-    texto = strip_noise_phrases(texto)
-    texto = normalize_spaces(texto)
-    if len(texto) <= max_len:
-        return texto
-    cut = texto[:max_len].rsplit(" ", 1)[0].strip()
-    return cut + "..."
 
 def is_generic_transfer_post(texto: str) -> bool:
     t = clean_text(texto).lower()
@@ -249,6 +321,12 @@ def is_strict_transfer_post(texto: str) -> bool:
     has_accept = any(term in t for term in TRANSFER_ACCEPT_TERMS)
     has_reject = any(term in t for term in TRANSFER_REJECT_TERMS)
     return has_accept and not has_reject
+
+def titulo_normalizado(titulo: str) -> str:
+    t = clean_text(titulo).lower()
+    t = re.sub(r'[^a-z0-9 ]', '', t)
+    t = re.sub(r'\s+', ' ', t)
+    return t.strip()
 
 # =========================================================
 # STORAGE
@@ -325,8 +403,7 @@ def _assinatura(promo: dict) -> str:
     return "|".join([
         _norm_assinatura(promo.get("type")),
         _norm_assinatura(promo.get("program")),
-        _norm_assinatura(promo.get("title")),
-        _norm_assinatura(promo.get("link")),
+        _norm_assinatura(titulo_normalizado(promo.get("title"))),
     ])
 
 def deduplicar(promocoes: list) -> list:
@@ -455,7 +532,7 @@ def _parse_sitemap_xml(xml_text: str) -> list:
 def _interesting_url(url: str) -> bool:
     u = url.lower()
     keywords = [
-        "promo", "promoco", "oferta", "offer", "bonus", "bÃ´nus",
+        "promo", "promoco", "oferta", "offer", "bonus", "bônus",
         "clube", "milha", "mile", "points", "pontos", "passagem",
         "flight", "travel", "shopping", "turbo", "buy-points",
         "comprar", "compra", "resgate",
@@ -471,6 +548,7 @@ def coletar_sitemaps():
             resp.raise_for_status()
             first_level = _parse_sitemap_xml(resp.text)
             collected = []
+
             if any(u.endswith(".xml") for u in first_level):
                 for sitemap_url in first_level[:5]:
                     try:
@@ -491,7 +569,7 @@ def coletar_sitemaps():
 
             for url in filtered[:20]:
                 itens.append({
-                    "title": urlparse(url).path.replace("-", " ").replace("/", " "),
+                    "title": url,
                     "link": url,
                     "summary": url,
                     "source_url": fonte["url"],
@@ -524,11 +602,38 @@ def coletar_milheiro_publico():
             falhas[fonte["url"]] = str(e)
     return itens, falhas
 
+def coletar_paginas_promocionais():
+    itens = []
+    falhas = {}
+    for fonte in PROMO_PAGES:
+        try:
+            resp = safe_get(fonte["url"])
+            resp.raise_for_status()
+            texto = parse_html_text(resp.text)
+            itens.append({
+                "title": texto[:220],
+                "link": str(resp.url),
+                "summary": texto,
+                "source_url": fonte["url"],
+                "source_kind": "promo_page",
+                "type_hint": fonte.get("type_hint"),
+                "program_hint": fonte.get("program"),
+            })
+        except Exception as e:
+            falhas[fonte["url"]] = str(e)
+    return itens, falhas
+
 def coletar_todas_fontes():
     itens = []
     falhas = {}
 
-    for collector in [coletar_rss, coletar_paginas_oficiais, coletar_sitemaps, coletar_milheiro_publico]:
+    for collector in [
+        coletar_rss,
+        coletar_paginas_oficiais,
+        coletar_sitemaps,
+        coletar_milheiro_publico,
+        coletar_paginas_promocionais,
+    ]:
         c_itens, c_falhas = collector()
         itens.extend(c_itens)
         falhas.update(c_falhas)
@@ -539,40 +644,40 @@ def coletar_todas_fontes():
 # DETECTION
 # =========================================================
 
-def _norm(texto: str) -> str:
-    return build_short_title(texto, "", 220).lower()
-
-def _detect_program(texto: str, program_hint: str | None = None) -> str:
+def _detect_program(texto: str, program_hint=None):
     if program_hint:
         return program_hint
-    t = _norm(texto)
-    if "smiles" in t:
-        return "Smiles"
-    if "latam pass" in t or re.search(r"\blatam\b", t):
-        return "LATAM Pass"
-    if "azul fidelidade" in t or "tudoazul" in t or "clube azul" in t:
-        return "TudoAzul"
-    if "livelo" in t:
-        return "Livelo"
-    if "esfera" in t:
-        return "Esfera"
-    if "all accor" in t or re.search(r"\baccor\b", t):
-        return "ALL Accor"
-    if "krisflyer" in t:
-        return "KrisFlyer"
-    if "iberia" in t or "avios" in t:
-        return "Iberia"
-    if "flying blue" in t:
-        return "Flying Blue"
-    if "british airways" in t or "avios" in t:
-        return "British Airways"
-    if "tap" in t:
-        return "TAP"
-    if "amex" in t or "american express" in t:
-        return "Amex"
-    if "maxmilhas" in t or "milheiro" in t or "hotmilhas" in t:
-        return "Mercado de Milhas"
-    return "Programa nÃ£o identificado"
+
+    t = clean_text(texto).lower()
+
+    mapping = {
+        "smiles": "Smiles",
+        "clube smiles": "Smiles",
+        "latam": "LATAM Pass",
+        "latam pass": "LATAM Pass",
+        "azul": "TudoAzul",
+        "tudoazul": "TudoAzul",
+        "clube azul": "TudoAzul",
+        "livelo": "Livelo",
+        "esfera": "Esfera",
+        "accor": "ALL Accor",
+        "all accor": "ALL Accor",
+        "krisflyer": "KrisFlyer",
+        "singapore": "KrisFlyer",
+        "iberia": "Iberia",
+        "avios": "Iberia",
+        "flying blue": "Flying Blue",
+        "british airways": "British Airways",
+        "tap": "TAP",
+        "amex": "Amex",
+        "american express": "Amex",
+    }
+
+    for k, v in mapping.items():
+        if k in t:
+            return v
+
+    return None
 
 def _detectar_bonus_alto(texto: str) -> int:
     t = clean_text(texto).lower()
@@ -594,7 +699,6 @@ def _detectar_milheiro(texto: str) -> float | None:
                 return float(m.group(1).replace(",", "."))
             except Exception:
                 pass
-    # fallback broad
     m = re.search(r"r\$\s*(\d+[,.]?\d*)", t)
     if m and ("milheiro" in t or "clube" in t or "comprar milhas" in t or "compra de pontos" in t):
         try:
@@ -619,17 +723,21 @@ def _detect_type(texto: str, type_hint: str | None = None):
     t = clean_text(texto).lower()
     if any(r in t for r in RUIDO):
         return None
+
     hinted = type_hint if type_hint in {"milheiro", "transferencias", "passagens"} else None
 
     if "milheiro" in t or "maxmilhas" in t or "hotmilhas" in t:
         return "milheiro"
+
     if "compra de pontos" in t or "compra milhas" in t or "comprar milhas" in t:
         return "milheiro"
+
     if (
-        ("transfer" in t or "bÃ´nus" in t or "bonus" in t or "bonificada" in t or "converta pontos" in t or "envie pontos" in t)
+        ("transfer" in t or "bônus" in t or "bonus" in t or "bonificada" in t or "converta pontos" in t or "envie pontos" in t)
         and any(b in t for b in BANCOS + PROGRAMAS)
     ):
         return "transferencias"
+
     if (
         ("milhas" in t or "pontos" in t or "avios" in t)
         and (
@@ -640,6 +748,7 @@ def _detect_type(texto: str, type_hint: str | None = None):
         and any(p in t for p in PROGRAMAS)
     ):
         return "passagens"
+
     return hinted
 
 def _score_transferencias(texto: str) -> float:
@@ -706,31 +815,31 @@ def _score_milheiro(texto: str) -> float:
 
 def _classificacao(score: float) -> str:
     if score >= 9.0:
-        return "ð´ PROMOÃÃO IMPERDÃVEL"
+        return "🔴 PROMOÇÃO IMPERDÍVEL"
     if score >= 8.0:
-        return "ð¡ PROMOÃÃO MUITO BOA"
+        return "🟡 PROMOÇÃO MUITO BOA"
     if score >= 7.0:
-        return "ð¢ PROMOÃÃO BOA"
-    return "âª PROMOÃÃO REGULAR"
+        return "🟢 PROMOÇÃO BOA"
+    return "⚪ PROMOÇÃO REGULAR"
 
 def _alerta_prioridade(tipo: str, score: float, bonus: int, milheiro: float | None, sweet_spot: bool) -> str:
     if tipo == "transferencias" and bonus >= 100:
-        return "ð¨ BÃNUS ALTO DETECTADO"
+        return "🚨 BÔNUS ALTO DETECTADO"
     if tipo == "transferencias" and bonus >= 80:
-        return "ð¥ BÃNUS FORTE DETECTADO"
+        return "🔥 BÔNUS FORTE DETECTADO"
     if tipo == "milheiro" and milheiro is not None and milheiro <= 10:
-        return "ð¨ MILHEIRO MUITO BARATO"
+        return "🚨 MILHEIRO MUITO BARATO"
     if tipo == "milheiro" and milheiro is not None and milheiro <= 11:
-        return "ð¥ MILHEIRO BARATO DETECTADO"
+        return "🔥 MILHEIRO BARATO DETECTADO"
     if tipo == "passagens" and sweet_spot:
-        return "ð¨ RESGATE BARATO DETECTADO"
+        return "🚨 RESGATE BARATO DETECTADO"
     if score >= 9.0:
-        return "ð¨ ALERTA CRÃTICO"
+        return "🚨 ALERTA CRÍTICO"
     if score >= 8.0:
-        return "ð¥ ALERTA IMPORTANTE"
+        return "🔥 ALERTA IMPORTANTE"
     if score >= 7.0:
-        return "ð¢ PROMOÃÃO BOA"
-    return "âª INFORMATIVO"
+        return "🟢 PROMOÇÃO BOA"
+    return "⚪ INFORMATIVO"
 
 def _peso_categoria(tipo: str) -> float:
     if tipo == "milheiro":
@@ -742,11 +851,12 @@ def _peso_categoria(tipo: str) -> float:
     return 0.3
 
 def _build_id(titulo: str, link: str, tipo: str) -> str:
-    base = f"{tipo}|{build_short_title(titulo, '', 220)}|{str(link or '').strip()}"
+    base = f"{tipo}|{titulo_normalizado(titulo)}"
     return hashlib.md5(base.encode("utf-8")).hexdigest()
 
 def transformar_em_promocoes(itens: list) -> list:
     promocoes = []
+
     for item in itens:
         titulo_bruto = item.get("title", "")
         summary = item.get("summary", "")
@@ -765,10 +875,11 @@ def transformar_em_promocoes(itens: list) -> list:
 
         program = _detect_program(texto_base, program_hint=program_hint)
 
-        if tipo == "passagens" and program == "Programa nÃ£o identificado":
+        if tipo == "passagens" and not program:
             continue
+
         if tipo == "transferencias":
-            if program == "Programa nÃ£o identificado":
+            if not program:
                 continue
             if is_generic_transfer_post(texto_base):
                 continue
@@ -793,7 +904,7 @@ def transformar_em_promocoes(itens: list) -> list:
             "title": titulo_curto,
             "link": link,
             "type": tipo,
-            "program": program,
+            "program": program or "Programa não identificado",
             "score": round(score, 1),
             "classification": _classificacao(score),
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -806,6 +917,7 @@ def transformar_em_promocoes(itens: list) -> list:
             "source_kind": item.get("source_kind", "rss"),
         }
         promocoes.append(promo)
+
     return promocoes
 
 # =========================================================
@@ -834,7 +946,13 @@ STATE = RadarState()
 def executar_varredura():
     itens, falhas = coletar_todas_fontes()
 
-    fontes_monitoradas = len(FONTES_RSS) + len(FONTES_OFICIAIS) + len(SITEMAP_SOURCES) + len(PUBLIC_MILEAGE_SOURCES)
+    fontes_monitoradas = (
+        len(FONTES_RSS)
+        + len(FONTES_OFICIAIS)
+        + len(SITEMAP_SOURCES)
+        + len(PUBLIC_MILEAGE_SOURCES)
+        + len(PROMO_PAGES)
+    )
     fontes_com_erro = len(falhas)
     fontes_ativas = max(fontes_monitoradas - fontes_com_erro, 0)
 
@@ -855,7 +973,7 @@ def executar_varredura():
         if promo.get("id") not in ids_existentes:
             novas.append(promo)
             historico.append(promo)
-            if str(promo.get("alert_priority", "")).startswith("ð¨"):
+            if str(promo.get("alert_priority", "")).startswith("🚨"):
                 criticos += 1
 
     historico = deduplicar(historico)
@@ -873,13 +991,15 @@ def get_state_snapshot():
 def get_promocoes_por_tipo(tipo: str, limit: int = 5) -> list:
     snapshot = get_state_snapshot()
     promos = [p for p in snapshot["promocoes"] if p.get("type") == tipo]
+    promos = [p for p in promos if p.get("program") != "Programa não identificado"]
     promos = sorted(promos, key=lambda p: (p.get("ranking_score", 0), p.get("score", 0)), reverse=True)
     return promos[:limit]
 
 def get_ranking(limit: int = 5) -> list:
     snapshot = get_state_snapshot()
+    promos = [p for p in snapshot["promocoes"] if p.get("program") != "Programa não identificado"]
     promos = sorted(
-        snapshot["promocoes"],
+        promos,
         key=lambda p: (p.get("ranking_score", 0), p.get("score", 0)),
         reverse=True,
     )
@@ -894,25 +1014,26 @@ def build_status_text(interval_seconds: int) -> str:
     promocoes = snapshot["promocoes"]
     metricas = snapshot["metricas"]
     return (
-        "ð¢ Radar online\n\n"
-        f"â± Intervalo do radar: {interval_seconds} segundos\n"
-        f"ð¥ PromoÃ§Ãµes detectadas: {len(promocoes)}\n"
-        f"ð° Fontes monitoradas: {metricas.get('fontes_monitoradas', 0)}\n"
-        f"â Fontes ativas: {metricas.get('fontes_ativas', 0)}\n"
-        f"â Fontes com erro: {metricas.get('fontes_com_erro', 0)}\n"
-        f"ð¨ Alertas crÃ­ticos no Ãºltimo ciclo: {metricas.get('alertas_criticos', 0)}\n\n"
+        "🟢 Radar online\n\n"
+        f"⏱ Intervalo do radar: {interval_seconds} segundos\n"
+        f"📥 Promoções detectadas: {len(promocoes)}\n"
+        f"🛰 Fontes monitoradas: {metricas.get('fontes_monitoradas', 0)}\n"
+        f"✅ Fontes ativas: {metricas.get('fontes_ativas', 0)}\n"
+        f"❌ Fontes com erro: {metricas.get('fontes_com_erro', 0)}\n"
+        f"🚨 Alertas críticos no último ciclo: {metricas.get('alertas_criticos', 0)}\n\n"
         "Detectores ativos:\n"
-        "â blogs\n"
-        "â programas oficiais\n"
-        "â sitemap e pÃ¡ginas internas\n"
-        "â transferÃªncias\n"
-        "â milheiro barato\n"
-        "â passagens baratas\n"
-        "â score automÃ¡tico\n"
-        "â envio no canal\n\n"
-        f"ð¤ Ãltimos alertas enviados: {metricas.get('ultimos_alertas_enviados', 0)}\n"
-        f"ð Ãltima execuÃ§Ã£o: {metricas.get('ultima_execucao') or 'ainda nÃ£o executado'}\n"
-        f"â ï¸ Ãltimo erro: {metricas.get('ultimo_erro', 'nenhum')}"
+        "✓ blogs\n"
+        "✓ programas oficiais\n"
+        "✓ sitemap e páginas internas\n"
+        "✓ páginas promocionais\n"
+        "✓ transferências\n"
+        "✓ milheiro barato\n"
+        "✓ passagens baratas\n"
+        "✓ score automático\n"
+        "✓ envio no canal\n\n"
+        f"📤 Últimos alertas enviados: {metricas.get('ultimos_alertas_enviados', 0)}\n"
+        f"🕒 Última execução: {metricas.get('ultima_execucao') or 'ainda não executado'}\n"
+        f"⚠️ Último erro: {metricas.get('ultimo_erro', 'nenhum')}"
     )
 
 def build_debug_text() -> str:
@@ -920,61 +1041,61 @@ def build_debug_text() -> str:
     metricas = snapshot["metricas"]
     falhas = metricas.get("falhas_fontes", {})
     texto = (
-        "ð  DEBUG RADAR\n"
-        "ââââââââââââââ\n\n"
+        "🛠 DEBUG RADAR\n"
+        "━━━━━━━━━━━━━━\n\n"
         f"Fontes monitoradas: {metricas.get('fontes_monitoradas', 0)}\n"
         f"Fontes ativas: {metricas.get('fontes_ativas', 0)}\n"
         f"Fontes com erro: {metricas.get('fontes_com_erro', 0)}\n"
-        f"Ãltima execuÃ§Ã£o: {metricas.get('ultima_execucao') or 'ainda nÃ£o executado'}\n"
-        f"Ãltimo erro geral: {metricas.get('ultimo_erro', 'nenhum')}\n\n"
+        f"Última execução: {metricas.get('ultima_execucao') or 'ainda não executado'}\n"
+        f"Último erro geral: {metricas.get('ultimo_erro', 'nenhum')}\n\n"
         "Falhas por fonte\n"
-        "ââââââââââââââ\n\n"
+        "━━━━━━━━━━━━━━\n\n"
     )
     if not falhas:
-        texto += "Nenhuma falha crÃ­tica detectada."
+        texto += "Nenhuma falha crítica detectada."
     else:
         for fonte, erro in falhas.items():
-            texto += f"â¢ {fonte}: {erro}\n"
+            texto += f"• {fonte}: {erro}\n"
     return texto.strip()
 
 def format_card(promo: dict) -> str:
-    prioridade = promo.get("alert_priority", "ð¢ PROMOÃÃO BOA")
+    prioridade = promo.get("alert_priority", "🟢 PROMOÇÃO BOA")
     texto = f"{prioridade}\n\n"
-    texto += f"Programa: {promo.get('program', 'Programa nÃ£o identificado')}\n"
-    texto += f"TÃ­tulo: {promo.get('title', '')}\n"
+    texto += f"Programa: {promo.get('program', 'Programa não identificado')}\n"
+    texto += f"Título: {promo.get('title', '')}\n"
     if promo.get("bonus_detectado", 0):
-        texto += f"BÃ´nus detectado: {promo.get('bonus_detectado')}%\n"
+        texto += f"Bônus detectado: {promo.get('bonus_detectado')}%\n"
     if promo.get("milheiro_detectado") is not None:
         texto += f"Milheiro detectado: R$ {promo.get('milheiro_detectado'):.2f}\n"
     if promo.get("sweet_spot"):
         texto += "Sweet spot detectado: Sim\n"
     texto += f"Fontes confirmadas: {promo.get('fontes_confirmadas', 1)}\n"
     texto += f"Score: {promo.get('score', 0)}\n"
-    texto += f"{promo.get('classification', 'ð¢ PROMOÃÃO BOA')}\n\n"
+    texto += f"{promo.get('classification', '🟢 PROMOÇÃO BOA')}\n\n"
     texto += "Link:\n"
     texto += str(promo.get("link", ""))
     return texto
 
 def format_lista(titulo: str, promocoes: list) -> str:
     if not promocoes:
-        return f"{titulo}\n\nNenhuma promoÃ§Ã£o registrada ainda."
+        return f"{titulo}\n\nNenhuma promoção registrada ainda."
     partes = [titulo, ""]
     for promo in promocoes:
-        partes.append("ââââââââââââââ")
-        partes.append(f"Programa: {promo.get('program', 'Programa nÃ£o identificado')}")
-        partes.append(f"TÃ­tulo: {promo.get('title', '')}")
+        partes.append("━━━━━━━━━━━━━━")
+        partes.append(f"Programa: {promo.get('program', 'Programa não identificado')}")
+        partes.append(f"Título: {promo.get('title', '')}")
         if promo.get("bonus_detectado", 0):
-            partes.append(f"BÃ´nus detectado: {promo.get('bonus_detectado')}%")
+            partes.append(f"Bônus detectado: {promo.get('bonus_detectado')}%")
         if promo.get("milheiro_detectado") is not None:
             partes.append(f"Milheiro detectado: R$ {promo.get('milheiro_detectado'):.2f}")
         if promo.get("sweet_spot"):
             partes.append("Sweet spot detectado: Sim")
-        partes.append(f"Prioridade: {promo.get('alert_priority', 'ð¢ PROMOÃÃO BOA')}")
+        partes.append(f"Prioridade: {promo.get('alert_priority', '🟢 PROMOÇÃO BOA')}")
         partes.append(f"Score: {promo.get('score', 0)}")
-        partes.append(f"{promo.get('classification', 'ð¢ PROMOÃÃO BOA')}")
+        partes.append(f"{promo.get('classification', '🟢 PROMOÇÃO BOA')}")
         partes.append("Link:")
         partes.append(str(promo.get("link", "")))
-    partes.append("ââââââââââââââ")
+    partes.append("━━━━━━━━━━━━━━")
     return "\n".join(partes)
 
 # =========================================================
@@ -1021,7 +1142,7 @@ async def _scheduled_scan():
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "âï¸ Radar de Milhas PRO\n\n"
+        "✈️ Radar de Milhas PRO\n\n"
         "/menu\n"
         "/promocoes\n"
         "/transferencias\n"
@@ -1033,7 +1154,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "ð¡ MENU\n\n"
+        "📡 MENU\n\n"
         "/promocoes\n"
         "/transferencias\n"
         "/passagens\n"
@@ -1049,70 +1170,70 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
-        await update.message.reply_text("â Comando disponÃ­vel apenas para o administrador.")
+        await update.message.reply_text("⛔ Comando disponível apenas para o administrador.")
         return
     await update.message.reply_text(build_debug_text(), disable_web_page_preview=True)
 
 async def cmd_promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_ranking(limit=5)
-    await update.message.reply_text(format_lista("ð¥ Ãltimas promoÃ§Ãµes", promos), disable_web_page_preview=True)
+    await update.message.reply_text(format_lista("🔥 Últimas promoções", promos), disable_web_page_preview=True)
 
 async def cmd_transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_promocoes_por_tipo("transferencias", limit=5)
-    promos = [p for p in promos if p.get("program") != "Programa nÃ£o identificado"]
     if not promos:
-        texto = "ð³ PromoÃ§Ãµes de transferÃªncias de pontos monitoradas\n\nNenhuma transferÃªncia promocional ativa detectada no momento."
+        texto = "💳 Promoções de transferências de pontos monitoradas\n\nNenhuma transferência promocional ativa detectada no momento."
     else:
-        texto = format_lista("ð³ PromoÃ§Ãµes de transferÃªncias de pontos monitoradas", promos)
+        texto = format_lista("💳 Promoções de transferências de pontos monitoradas", promos)
     await update.message.reply_text(texto, disable_web_page_preview=True)
 
 async def cmd_passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_promocoes_por_tipo("passagens", limit=5)
-    await update.message.reply_text(format_lista("âï¸ Ãltimos alertas de passagens", promos), disable_web_page_preview=True)
+    await update.message.reply_text(format_lista("✈️ Últimos alertas de passagens", promos), disable_web_page_preview=True)
 
 async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_ranking(limit=MAX_RANKING if MAX_RANKING < 6 else 5)
     if not promos:
-        await update.message.reply_text("ð Ranking promoÃ§Ãµes\n\nNenhuma promoÃ§Ã£o registrada ainda.", disable_web_page_preview=True)
+        await update.message.reply_text("🏆 Ranking oportunidades\n\nNenhuma promoção registrada ainda.", disable_web_page_preview=True)
         return
-    linhas = ["ð Ranking oportunidades", ""]
+
+    linhas = ["🏆 Ranking oportunidades", ""]
     for i, promo in enumerate(promos, start=1):
-        linhas.append(f"{i}. {promo.get('program', 'Programa nÃ£o identificado')}")
+        linhas.append(f"{i}. {promo.get('program', 'Programa não identificado')}")
         linhas.append(f"{promo.get('title', '')}")
-        linhas.append(f"Prioridade: {promo.get('alert_priority', 'ð¢ PROMOÃÃO BOA')}")
+        linhas.append(f"Prioridade: {promo.get('alert_priority', '🟢 PROMOÇÃO BOA')}")
         linhas.append(f"Score: {promo.get('score', 0)}")
-        linhas.append(f"{promo.get('classification', 'ð¢ PROMOÃÃO BOA')}")
+        linhas.append(f"{promo.get('classification', '🟢 PROMOÇÃO BOA')}")
         if i != len(promos):
             linhas.append("")
-            linhas.append("ââââââââââââââ")
+            linhas.append("━━━━━━━━━━━━━━")
             linhas.append("")
     await update.message.reply_text("\n".join(linhas), disable_web_page_preview=True)
 
 async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
-        await update.message.reply_text("â Comando disponÃ­vel apenas para o administrador.")
+        await update.message.reply_text("⛔ Comando disponível apenas para o administrador.")
         return
     if SCAN_LOCK.locked():
-        await update.message.reply_text("â³ JÃ¡ existe uma varredura em andamento. Aguarde terminar.", disable_web_page_preview=True)
+        await update.message.reply_text("⏳ Já existe uma varredura em andamento. Aguarde terminar.", disable_web_page_preview=True)
         return
-    await update.message.reply_text("ð§ª Teste manual do radar iniciado...", disable_web_page_preview=True)
+    await update.message.reply_text("🧪 Teste manual do radar iniciado...", disable_web_page_preview=True)
     try:
         result = await _run_scan()
         await update.message.reply_text(
-            "â Teste manual concluÃ­do.\n\n"
+            "✅ Teste manual concluído.\n\n"
             f"Fontes monitoradas: {STATE.metricas.get('fontes_monitoradas', 0)}\n"
             f"Fontes ativas: {STATE.metricas.get('fontes_ativas', 0)}\n"
             f"Fontes com erro: {STATE.metricas.get('fontes_com_erro', 0)}\n"
-            f"PromoÃ§Ãµes analisadas: {result.get('detectadas', 0)}\n"
-            f"Novas promoÃ§Ãµes enviadas: {result.get('novas', 0)}\n"
-            f"Alertas crÃ­ticos no Ãºltimo ciclo: {STATE.metricas.get('alertas_criticos', 0)}\n"
-            f"Ãltimo erro: {STATE.metricas.get('ultimo_erro', 'nenhum')}",
+            f"Promoções analisadas: {result.get('detectadas', 0)}\n"
+            f"Novas promoções enviadas: {result.get('novas', 0)}\n"
+            f"Alertas críticos no último ciclo: {STATE.metricas.get('alertas_criticos', 0)}\n"
+            f"Último erro: {STATE.metricas.get('ultimo_erro', 'nenhum')}",
             disable_web_page_preview=True,
         )
     except Exception as e:
         STATE.metricas["ultimo_erro"] = str(e)
         STATE.persistir()
-        await update.message.reply_text(f"â Erro ao executar o radar: {e}", disable_web_page_preview=True)
+        await update.message.reply_text(f"❌ Erro ao executar o radar: {e}", disable_web_page_preview=True)
 
 async def post_init(application):
     scheduler = AsyncIOScheduler()
