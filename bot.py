@@ -35,9 +35,9 @@ PROMOCOES_FILE = "promocoes_enviadas.json"
 METRICS_FILE = "dashboard_metrics.json"
 
 if not TELEGRAM_TOKEN:
-    raise RuntimeError("VariÃ¡vel TELEGRAM_TOKEN nÃ£o configurada.")
+    raise RuntimeError("Variável TELEGRAM_TOKEN não configurada.")
 if not CANAL_ID:
-    raise RuntimeError("VariÃ¡vel CANAL_ID nÃ£o configurada.")
+    raise RuntimeError("Variável CANAL_ID não configurada.")
 
 # =========================================================
 # FONTES
@@ -118,44 +118,44 @@ NOISE_FRAGMENTS = [
     "radar ppv",
     "alerta de passagens ppv!",
     "alerta de passagens ppv",
-    "seja bem-vindo a mais uma ediÃ§Ã£o do radar ppv",
-    "a Ãºltima ediÃ§Ã£o do radar ppv da semana chegou",
-    "a Ãºltima ediÃ§Ã£o do radar ppv",
-    "resumo das promoÃ§Ãµes",
-    "resumo promoÃ§Ãµes",
-    "a promoÃ§Ã£o do",
-    "a smiles estÃ¡ oferecendo",
+    "seja bem-vindo a mais uma edição do radar ppv",
+    "a última edição do radar ppv da semana chegou",
+    "a última edição do radar ppv",
+    "resumo das promoções",
+    "resumo promoções",
+    "a promoção do",
+    "a smiles está oferecendo",
     "o smiles voltou a oferecer",
-    "nesta oferta, Ã© possÃ­vel",
+    "nesta oferta, é possível",
     "confira os detalhes para participar e aproveitar a oferta",
-    "atenÃ§Ã£o: a busca dessas emissÃµes foi realizada no momento da produÃ§Ã£o",
-    "estÃ¡ planejando aquela viagem dos sonhos",
-    "entÃ£o estÃ¡ no lugar certo",
+    "atenção: a busca dessas emissões foi realizada no momento da produção",
+    "está planejando aquela viagem dos sonhos",
+    "então está no lugar certo",
     "no artigo de hoje, separamos",
     "o post",
 ]
 
 GENERIC_TRANSFER_TERMS = [
     "radar ppv",
-    "resumo das promoÃ§Ãµes",
-    "resumo promoÃ§Ãµes",
-    "seja bem-vindo a mais uma ediÃ§Ã£o",
-    "a Ãºltima ediÃ§Ã£o",
-    "ediÃ§Ã£o do radar",
+    "resumo das promoções",
+    "resumo promoções",
+    "seja bem-vindo a mais uma edição",
+    "a última edição",
+    "edição do radar",
 ]
 
 TRANSFER_ACCEPT_TERMS = [
-    "transferÃªncia bonificada",
+    "transferência bonificada",
     "transferencia bonificada",
-    "acÃºmulo com parceiro",
+    "acúmulo com parceiro",
     "acumulo com parceiro",
-    "campanhas hÃ­bridas",
+    "campanhas híbridas",
     "campanhas hibridas",
-    "campanha hÃ­brida",
+    "campanha híbrida",
     "campanha hibrida",
-    "transferÃªncia",
+    "transferência",
     "transferencia",
-    "bÃ´nus",
+    "bônus",
     "bonus",
     "bonificada",
     "envie pontos",
@@ -171,9 +171,9 @@ TRANSFER_REJECT_TERMS = [
     "varejo",
     "parceiros varejistas",
     "parceiro varejista",
-    "campanha de acÃºmulo",
+    "campanha de acúmulo",
     "campanha de acumulo",
-    "acÃºmulo comum",
+    "acúmulo comum",
     "acumulo comum",
     "credit card",
     "card",
@@ -185,7 +185,7 @@ TRANSFER_REJECT_TERMS = [
     "bonvoy card",
     "brilliant card",
     "amex card",
-    "cartÃ£o",
+    "cartão",
     "cartao",
     "tier point",
     "tier points",
@@ -207,20 +207,20 @@ TRANSFER_EXTRA_REJECT_TERMS = [
     "boas vindas",
     "boas-vindas",
     "reativacao",
-    "reativaÃ§Ã£o",
+    "reativação",
     "compre pontos",
     "compra de pontos",
     "comprar pontos",
     "comprar milhas",
-    "hotÃ©is",
+    "hotéis",
     "hoteis",
     "hotel",
     "desconto",
     "euros",
-    "gaste em hotÃ©is",
+    "gaste em hotéis",
     "gaste em hoteis",
     "all signature",
-    "acelere seus benefÃ­cios",
+    "acelere seus benefícios",
     "acelere seus beneficios",
 ]
 
@@ -228,19 +228,19 @@ ANTI_SPAM_TERMS = [
     "radar ppv",
     "resumo da semana",
     "resumo do dia",
-    "resumo das promoÃ§Ãµes",
+    "resumo das promoções",
     "promocoes que terminam hoje",
-    "promoÃ§Ãµes que terminam hoje",
-    "Ãºltima chamada",
+    "promoções que terminam hoje",
+    "última chamada",
     "ultima chamada",
-    "Ãºltima ediÃ§Ã£o",
-    "ultima ediÃ§Ã£o",
+    "última edição",
+    "ultima edição",
     "review",
     "guia",
     "dicas",
     "vale a pena",
     "como funciona",
-    "melhores cartÃµes",
+    "melhores cartões",
     "melhores cartoes",
 ]
 
@@ -249,12 +249,12 @@ RANKING_REJECT_TERMS = [
     "radar ppv",
     "no alerta ppv de hoje",
     "no alerta de hoje",
-    "resumo das promoÃ§Ãµes",
+    "resumo das promoções",
     "resumo promocoes",
     "resumo da semana",
-    "Ãºltima chamada",
+    "última chamada",
     "ultima chamada",
-    "ediÃ§Ã£o do radar",
+    "edição do radar",
     "edicao do radar",
     "seja bem-vindo",
     "seja bem vindo",
@@ -265,10 +265,10 @@ RANKING_REJECT_TERMS = [
     "fazer login",
     "boas vindas",
     "boas-vindas",
-    "acelere seus benefÃ­cios",
+    "acelere seus benefícios",
     "acelere seus beneficios",
     "reativacao",
-    "reativaÃ§Ã£o",
+    "reativação",
     "signature",
     "assine",
     "assinatura",
@@ -277,20 +277,13 @@ RANKING_REJECT_TERMS = [
     "welcome offer",
     "signup",
     "sign up",
-    "benefÃ­cios exclusivos",
+    "benefícios exclusivos",
     "beneficios exclusivos",
-    "tudo isso e outros benefÃ­cios",
+    "tudo isso e outros benefícios",
     "tudo isso e outros beneficios",
     "clube livelo",
-    "benefÃ­cios do clube",
+    "benefícios do clube",
     "beneficios do clube",
-    "conheÃ§a o programa",
-    "acumule milhas",
-    "programa de pontos e recompensas",
-    "programa de pontos",
-    "como funciona",
-    "vantagens",
-    "institucional",
 ]
 
 EDITORIAL_GENERIC_TERMS = [
@@ -298,14 +291,14 @@ EDITORIAL_GENERIC_TERMS = [
     "no artigo de hoje",
     "separamos",
     "encontramos oportunidades",
-    "estÃ¡ no lugar certo",
+    "está no lugar certo",
     "planejando aquela viagem",
     "resumo da semana",
     "resumo do dia",
-    "ediÃ§Ã£o do radar",
-    "Ãºltima chamada",
+    "edição do radar",
+    "última chamada",
     "ultima chamada",
-    "sugestÃµes de voos",
+    "sugestões de voos",
     "sugestoes de voos",
     "confira",
     "veja trechos",
@@ -337,7 +330,7 @@ PROGRAMAS = [
 
 BANCOS = [
     "itau",
-    "itaÃº",
+    "itaú",
     "bradesco",
     "santander",
     "banco do brasil",
@@ -356,12 +349,12 @@ BANCOS = [
 ]
 
 RUIDO = [
-    "deixe um comentÃ¡rio",
+    "deixe um comentário",
     "deixe um comentario",
     "publicidade",
     "saiba mais",
-    "10 horas atrÃ¡s",
-    "horas atrÃ¡s",
+    "10 horas atrás",
+    "horas atrás",
     "vale a pena",
     "review",
     "guia",
@@ -393,7 +386,7 @@ def clean_text(texto: str) -> str:
     texto = BeautifulSoup(texto, "html.parser").get_text(" ", strip=True)
     texto = re.sub(r"\s+", " ", texto).strip()
 
-    lixo = ["Ã¢â¬Â¢", "Ã¢â¬", "Ã¢â¬â¢", "Ã¢â¬Å", "Ã", "Ã°", "Ã", "Ã¢", "Â¤", "ï¿½"]
+    lixo = ["â€¢", "â€", "â€™", "â€œ", "Ã", "ð", "Â", "â", "¤", "�"]
     for item in lixo:
         texto = texto.replace(item, " ")
 
@@ -420,7 +413,7 @@ def sentence_crop(texto: str, max_len: int = 170) -> str:
     texto = normalize_spaces(texto)
     if len(texto) <= max_len:
         return texto
-    candidates = [". ", "! ", "? ", " - ", " â ", ": "]
+    candidates = [". ", "! ", "? ", " - ", " – ", ": "]
     cut = -1
     for sep in candidates:
         pos = texto.rfind(sep, 0, max_len)
@@ -513,11 +506,11 @@ def cleanup_title_for_output(texto: str) -> str:
         r"^radar ppv[!:\-\s]*",
         r"^no alerta ppv de hoje[,:\-\s]*",
         r"^no alerta de hoje[,:\-\s]*",
-        r"^resumo das promoÃ§Ãµes[,:\-\s]*",
+        r"^resumo das promoções[,:\-\s]*",
         r"^resumo promocoes[,:\-\s]*",
-        r"^Ãºltima chamada[!:\-\s]*",
+        r"^última chamada[!:\-\s]*",
         r"^ultima chamada[!:\-\s]*",
-        r"^seja bem[- ]vindo[a]?\s+a\s+mais\s+uma\s+ediÃ§Ã£o\s+do\s+.*",
+        r"^seja bem[- ]vindo[a]?\s+a\s+mais\s+uma\s+edição\s+do\s+.*",
         r"^seja bem[- ]vindo[a]?\s+a\s+mais\s+uma\s+edicao\s+do\s+.*",
     ]
     for padrao in padroes:
@@ -548,11 +541,11 @@ def build_short_title(title: str, summary: str = "", link: str = "", max_len: in
     for pat in [
         r"\bsaiba mais\b",
         r"\bpublicidade\b",
-        r"\bdeixe um coment[aÃ¡]rio\b",
+        r"\bdeixe um coment[aá]rio\b",
         r"\bsegue valendo!?+\b",
         r"\bprorrogou!?+\b",
-        r"\b\d+\s+horas?\s+atr[aÃ¡]s\b",
-        r"\b\d{1,2}\s+de\s+[a-zÃ§Ã£Ã©]+\s+de\s+\d{4}\b",
+        r"\b\d+\s+horas?\s+atr[aá]s\b",
+        r"\b\d{1,2}\s+de\s+[a-zçãé]+\s+de\s+\d{4}\b",
     ]:
         base = re.sub(pat, " ", base, flags=re.I)
 
@@ -572,18 +565,18 @@ def is_commercial_noise_for_ranking(title: str, summary: str, link: str) -> bool
 
     blocks = [
         "clube livelo",
-        "ganhe pontos e aproveite benefÃ­cios",
+        "ganhe pontos e aproveite benefícios",
         "ganhe pontos e aproveite beneficios",
-        "benefÃ­cios exclusivos",
+        "benefícios exclusivos",
         "beneficios exclusivos",
-        "tudo isso e outros benefÃ­cios",
+        "tudo isso e outros benefícios",
         "tudo isso e outros beneficios",
         "criar conta",
         "fazer login",
         "login",
         "boas-vindas",
         "boas vindas",
-        "acelere seus benefÃ­cios",
+        "acelere seus benefícios",
         "acelere seus beneficios",
         "compre pontos",
         "compra de pontos",
@@ -591,69 +584,16 @@ def is_commercial_noise_for_ranking(title: str, summary: str, link: str) -> bool
         "assinatura",
         "signature",
         "reativacao",
-        "reativaÃ§Ã£o",
-        "conheÃ§a o programa",
-        "acumule milhas",
-        "programa de pontos e recompensas",
-        "programa de pontos",
-        "como funciona",
-        "vantagens",
-        "institucional",
+        "reativação",
+        "clube",
     ]
 
     if any(b in texto for b in blocks):
-        if not re.search(r"(\d{2,3})\s*%|milheiro|r\$\s*\d+[,.]?\d*|3\.?\d{3}|4\.?\d{3}|5\.?\d{3}|6\.?\d{3}|7\.?\d{3}|8\.?\d{3}|9\.?\d{3}", texto):
+        if not re.search(r"(\d{2,3})\s*%|milheiro|r\$\s*\d+[,.]?\d*|3\.?\d{3}|4\.?\d{3}|5\.?\d{3}", texto):
             return True
 
     if any(x in link_l for x in ["login", "reativacao", "signature", "bonus-200"]):
         return True
-
-    return False
-
-
-def is_real_opportunity_for_ranking(promo: dict) -> bool:
-    tipo = str(promo.get("type", "")).lower()
-    title = clean_text(promo.get("title", "")).lower()
-    link = clean_text(promo.get("link", "")).lower()
-    score = float(promo.get("score", 0) or 0)
-    bonus = int(promo.get("bonus_detectado") or 0)
-    milheiro = promo.get("milheiro_detectado")
-    sweet_spot = bool(promo.get("sweet_spot"))
-
-    generic_terms = [
-        "conheÃ§a o programa",
-        "acumule milhas",
-        "programa de pontos e recompensas",
-        "programa de pontos",
-        "como funciona",
-        "vantagens",
-        "institucional",
-        "benefÃ­cios do clube",
-        "beneficios do clube",
-    ]
-
-    if any(t in title for t in generic_terms):
-        return False
-
-    if any(t in link for t in ["programa", "institucional"]) and bonus == 0 and milheiro is None and not sweet_spot:
-        return False
-
-    if tipo == "transferencias":
-        return bonus >= 40
-
-    if tipo == "milheiro":
-        return milheiro is not None
-
-    if tipo == "passagens":
-        if sweet_spot:
-            return True
-        if score >= 8.0:
-            return True
-        if re.search(r"\b(3|4|5|6|7|8|9)\d{3,4}\b", title):
-            return True
-        if any(k in title for k in ["resgate", "passagem", "trecho", "executiva", "business"]):
-            return True
-        return False
 
     return False
 
@@ -957,7 +897,7 @@ def _parse_sitemap_xml(xml_text: str) -> list:
 def _interesting_url(url: str) -> bool:
     u = url.lower()
     keywords = [
-        "promo", "promoco", "oferta", "offer", "bonus", "bÃ´nus",
+        "promo", "promoco", "oferta", "offer", "bonus", "bônus",
         "clube", "milha", "mile", "points", "pontos", "passagem",
         "flight", "travel", "shopping", "turbo", "buy-points",
         "comprar", "compra", "resgate", "reativacao",
@@ -1135,7 +1075,7 @@ def coletar_todas_fontes():
     return itens, falhas
 
 # =========================================================
-# DETECÃÃO
+# DETECÇÃO
 # =========================================================
 
 
@@ -1233,7 +1173,7 @@ def _detect_type(texto: str, type_hint: str | None = None):
         return "milheiro"
 
     if (
-        ("transfer" in t or "bÃ´nus" in t or "bonus" in t or "bonificada" in t or "converta pontos" in t or "envie pontos" in t)
+        ("transfer" in t or "bônus" in t or "bonus" in t or "bonificada" in t or "converta pontos" in t or "envie pontos" in t)
         and any(b in t for b in BANCOS + PROGRAMAS)
     ):
         return "transferencias"
@@ -1321,32 +1261,32 @@ def _score_milheiro(texto: str) -> float:
 
 def _classificacao(score: float) -> str:
     if score >= 9.0:
-        return "ð´ PROMOÃÃO IMPERDÃVEL"
+        return "🔴 PROMOÇÃO IMPERDÍVEL"
     if score >= 8.0:
-        return "ð¡ PROMOÃÃO MUITO BOA"
+        return "🟡 PROMOÇÃO MUITO BOA"
     if score >= 7.0:
-        return "ð¢ PROMOÃÃO BOA"
-    return "âª PROMOÃÃO REGULAR"
+        return "🟢 PROMOÇÃO BOA"
+    return "⚪ PROMOÇÃO REGULAR"
 
 
 def _alerta_prioridade(tipo: str, score: float, bonus: int, milheiro: float | None, sweet_spot: bool) -> str:
     if tipo == "transferencias" and bonus >= 100:
-        return "ð¨ BÃNUS ALTO DETECTADO"
+        return "🚨 BÔNUS ALTO DETECTADO"
     if tipo == "transferencias" and bonus >= 80:
-        return "ð¥ BÃNUS FORTE DETECTADO"
+        return "🔥 BÔNUS FORTE DETECTADO"
     if tipo == "milheiro" and milheiro is not None and milheiro <= 10:
-        return "ð¨ MILHEIRO MUITO BARATO"
+        return "🚨 MILHEIRO MUITO BARATO"
     if tipo == "milheiro" and milheiro is not None and milheiro <= 11:
-        return "ð¥ MILHEIRO BARATO DETECTADO"
+        return "🔥 MILHEIRO BARATO DETECTADO"
     if tipo == "passagens" and sweet_spot:
-        return "ð¨ RESGATE BARATO DETECTADO"
+        return "🚨 RESGATE BARATO DETECTADO"
     if score >= 9.0:
-        return "ð¨ ALERTA CRÃTICO"
+        return "🚨 ALERTA CRÍTICO"
     if score >= 8.0:
-        return "ð¥ ALERTA IMPORTANTE"
+        return "🔥 ALERTA IMPORTANTE"
     if score >= 7.0:
-        return "ð¢ PROMOÃÃO BOA"
-    return "âª INFORMATIVO"
+        return "🟢 PROMOÇÃO BOA"
+    return "⚪ INFORMATIVO"
 
 
 def _peso_categoria(tipo: str) -> float:
@@ -1380,11 +1320,11 @@ def _penalidade_editorial(title: str, summary: str, source_kind: str) -> float:
 
     penalty = 0.0
     if source_kind == "rss" and is_editorial_generic(title, summary):
-        penalty += 0.75
-    if any(term in texto for term in ["confira", "encontramos oportunidades", "sugestÃµes de voos", "sugestoes de voos"]):
-        penalty += 0.45
-    if any(term in texto for term in ["clube livelo", "benefÃ­cios exclusivos", "beneficios exclusivos", "conheÃ§a o programa", "acumule milhas"]):
-        penalty += 1.20
+        penalty += 0.60
+    if any(term in texto for term in ["confira", "encontramos oportunidades", "sugestões de voos", "sugestoes de voos"]):
+        penalty += 0.35
+    if any(term in texto for term in ["clube livelo", "benefícios exclusivos", "beneficios exclusivos"]):
+        penalty += 0.80
     return penalty
 
 
@@ -1472,7 +1412,7 @@ def transformar_em_promocoes(itens: list) -> list:
             "title": titulo_curto,
             "link": link,
             "type": tipo,
-            "program": canonicalize_brand_names(program or "Programa nÃ£o identificado"),
+            "program": canonicalize_brand_names(program or "Programa não identificado"),
             "score": round(score, 1),
             "classification": _classificacao(score),
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1554,7 +1494,7 @@ def executar_varredura():
             if promo.get("id") not in ids_existentes:
                 novas.append(promo)
                 historico.append(promo)
-                if str(promo.get("alert_priority", "")).startswith("ð¨"):
+                if str(promo.get("alert_priority", "")).startswith("🚨"):
                     criticos += 1
 
         historico = deduplicar(historico)
@@ -1614,20 +1554,20 @@ def get_state_snapshot():
 def get_promocoes_por_tipo(tipo: str, limit: int = 5) -> list:
     snapshot = get_state_snapshot()
     promos = [p for p in snapshot["promocoes"] if p.get("type") == tipo]
-    promos = [p for p in promos if p.get("program") != "Programa nÃ£o identificado"]
+    promos = [p for p in promos if p.get("program") != "Programa não identificado"]
 
     if tipo == "transferencias":
         bloqueios = [
             "credit card", "card", "welcome offer", "sign up", "signup",
-            "marriott", "bonvoy", "brilliant card", "cartÃ£o", "cartao",
+            "marriott", "bonvoy", "brilliant card", "cartão", "cartao",
             "tier point", "tier points", "status bonus", "american airlines flights",
             "ba adds tier point", "tier bonuses",
-            "compre pontos", "compra de pontos", "reativacao", "reativaÃ§Ã£o",
+            "compre pontos", "compra de pontos", "reativacao", "reativação",
             "criar conta", "fazer login", "login", "boas vindas", "boas-vindas",
             "assine", "assinatura", "signature", "all signature",
-            "hotel", "hoteis", "hotÃ©is", "desconto", "euros",
-            "gaste em hotÃ©is", "gaste em hoteis",
-            "acelere seus beneficios", "acelere seus benefÃ­cios",
+            "hotel", "hoteis", "hotéis", "desconto", "euros",
+            "gaste em hotéis", "gaste em hoteis",
+            "acelere seus beneficios", "acelere seus benefícios",
         ]
         filtradas = []
         for p in promos:
@@ -1656,13 +1596,14 @@ def get_promocoes_por_tipo(tipo: str, limit: int = 5) -> list:
 
 def get_ranking(limit: int = 5) -> list:
     snapshot = get_state_snapshot()
-    promos = [p for p in snapshot["promocoes"] if p.get("program") != "Programa nÃ£o identificado"]
+    promos = [p for p in snapshot["promocoes"] if p.get("program") != "Programa não identificado"]
 
     filtradas = []
     for p in promos:
         titulo = clean_text(p.get("title", ""))
         resumo = clean_text(p.get("title", ""))
         link = clean_text(p.get("link", "")).lower()
+
         titulo_l = titulo.lower()
 
         if any(term in titulo_l for term in RANKING_REJECT_TERMS):
@@ -1673,21 +1614,23 @@ def get_ranking(limit: int = 5) -> list:
             continue
         if is_commercial_noise_for_ranking(titulo, resumo, link):
             continue
-        if not is_real_opportunity_for_ranking(p):
+
+        if p.get("type") == "transferencias" and int(p.get("bonus_detectado") or 0) < 40:
             continue
+
+        if p.get("type") == "milheiro" and p.get("milheiro_detectado") is None:
+            continue
+
+        if p.get("type") == "passagens":
+            if any(term in titulo_l for term in ["confira", "sugestões de voos", "sugestoes de voos"]):
+                # aceita só se for muito forte
+                if float(p.get("score", 0)) < 9.0:
+                    continue
 
         filtradas.append(p)
 
     filtradas = deduplicar(filtradas)
-    filtradas = sorted(
-        filtradas,
-        key=lambda p: (
-            p.get("ranking_score", 0),
-            p.get("score", 0),
-            1 if p.get("source_kind") in {"early_detect", "promo_page", "official"} else 0,
-        ),
-        reverse=True,
-    )
+    filtradas = sorted(filtradas, key=lambda p: (p.get("ranking_score", 0), p.get("score", 0)), reverse=True)
     return filtradas[:limit]
 
 # =========================================================
@@ -1704,35 +1647,35 @@ def build_status_text(interval_seconds: int) -> str:
     fontes_ativas = metricas.get("fontes_ativas", 0)
     fontes_com_erro = metricas.get("fontes_com_erro", 0)
     promocoes_detectadas = metricas.get("promocoes_detectadas_ultimo_ciclo", 0)
-    ultima_execucao = metricas.get("ultima_execucao") or "ainda nÃ£o executado"
+    ultima_execucao = metricas.get("ultima_execucao") or "ainda não executado"
     ultimo_erro = metricas.get("ultimo_erro", "nenhum")
 
     if metricas.get("varredura_em_andamento") and promocoes_detectadas == 0 and promocoes:
         promocoes_detectadas = len(promocoes)
 
     return (
-        "ð¢ Radar online\n\n"
-        f"â± Intervalo do radar: {interval_seconds} segundos\n"
-        f"ð¥ PromoÃ§Ãµes detectadas: {promocoes_detectadas}\n"
-        f"ð° Fontes monitoradas: {fontes_monitoradas}\n"
-        f"â Fontes ativas: {fontes_ativas}\n"
-        f"â Fontes com erro: {fontes_com_erro}\n"
-        f"ð¨ Alertas crÃ­ticos no Ãºltimo ciclo: {metricas.get('alertas_criticos', 0)}\n"
-        f"â³ Varredura em andamento: {'sim' if metricas.get('varredura_em_andamento') else 'nÃ£o'}\n\n"
+        "🟢 Radar online\n\n"
+        f"⏱ Intervalo do radar: {interval_seconds} segundos\n"
+        f"📥 Promoções detectadas: {promocoes_detectadas}\n"
+        f"🛰 Fontes monitoradas: {fontes_monitoradas}\n"
+        f"✅ Fontes ativas: {fontes_ativas}\n"
+        f"❌ Fontes com erro: {fontes_com_erro}\n"
+        f"🚨 Alertas críticos no último ciclo: {metricas.get('alertas_criticos', 0)}\n"
+        f"⏳ Varredura em andamento: {'sim' if metricas.get('varredura_em_andamento') else 'não'}\n\n"
         "Detectores ativos:\n"
-        "â blogs\n"
-        "â programas oficiais\n"
-        "â sitemap e pÃ¡ginas internas\n"
-        "â pÃ¡ginas promocionais\n"
-        "â detector antecipado de promoÃ§Ãµes\n"
-        "â transferÃªncias\n"
-        "â milheiro barato\n"
-        "â passagens baratas\n"
-        "â score automÃ¡tico\n"
-        "â envio no canal\n\n"
-        f"ð¤ Ãltimos alertas enviados: {metricas.get('ultimos_alertas_enviados', 0)}\n"
-        f"ð Ãltima execuÃ§Ã£o: {ultima_execucao}\n"
-        f"â ï¸ Ãltimo erro: {ultimo_erro}"
+        "✓ blogs\n"
+        "✓ programas oficiais\n"
+        "✓ sitemap e páginas internas\n"
+        "✓ páginas promocionais\n"
+        "✓ detector antecipado de promoções\n"
+        "✓ transferências\n"
+        "✓ milheiro barato\n"
+        "✓ passagens baratas\n"
+        "✓ score automático\n"
+        "✓ envio no canal\n\n"
+        f"📤 Últimos alertas enviados: {metricas.get('ultimos_alertas_enviados', 0)}\n"
+        f"🕒 Última execução: {ultima_execucao}\n"
+        f"⚠️ Último erro: {ultimo_erro}"
     )
 
 
@@ -1742,33 +1685,33 @@ def build_debug_text() -> str:
     falhas = metricas.get("falhas_fontes", {})
 
     texto = (
-        "ð  DEBUG RADAR\n"
-        "ââââââââââââââ\n\n"
+        "🛠 DEBUG RADAR\n"
+        "━━━━━━━━━━━━━━\n\n"
         f"Fontes monitoradas: {metricas.get('fontes_monitoradas', 0)}\n"
         f"Fontes ativas: {metricas.get('fontes_ativas', 0)}\n"
         f"Fontes com erro: {metricas.get('fontes_com_erro', 0)}\n"
-        f"Ãltima execuÃ§Ã£o: {metricas.get('ultima_execucao') or 'ainda nÃ£o executado'}\n"
-        f"Ãltimo erro geral: {metricas.get('ultimo_erro', 'nenhum')}\n\n"
+        f"Última execução: {metricas.get('ultima_execucao') or 'ainda não executado'}\n"
+        f"Último erro geral: {metricas.get('ultimo_erro', 'nenhum')}\n\n"
         "Falhas por fonte\n"
-        "ââââââââââââââ\n\n"
+        "━━━━━━━━━━━━━━\n\n"
     )
 
     if not falhas:
-        texto += "Nenhuma falha crÃ­tica detectada."
+        texto += "Nenhuma falha crítica detectada."
     else:
         for fonte, erro in falhas.items():
-            texto += f"â¢ {fonte}: {erro}\n"
+            texto += f"• {fonte}: {erro}\n"
 
     return texto.strip()
 
 
 def format_card(promo: dict) -> str:
-    prioridade = promo.get("alert_priority", "ð¢ PROMOÃÃO BOA")
+    prioridade = promo.get("alert_priority", "🟢 PROMOÇÃO BOA")
     texto = f"{prioridade}\n\n"
-    texto += f"Programa: {promo.get('program', 'Programa nÃ£o identificado')}\n"
-    texto += f"TÃ­tulo: {promo.get('title', '')}\n"
+    texto += f"Programa: {promo.get('program', 'Programa não identificado')}\n"
+    texto += f"Título: {promo.get('title', '')}\n"
     if promo.get("bonus_detectado", 0):
-        texto += f"BÃ´nus detectado: {promo.get('bonus_detectado')}%\n"
+        texto += f"Bônus detectado: {promo.get('bonus_detectado')}%\n"
     if promo.get("milheiro_detectado") is not None:
         texto += f"Milheiro detectado: R$ {promo.get('milheiro_detectado'):.2f}\n"
     if promo.get("sweet_spot"):
@@ -1776,7 +1719,7 @@ def format_card(promo: dict) -> str:
     texto += f"Fonte: {promo.get('source_kind', 'rss')}\n"
     texto += f"Fontes confirmadas: {promo.get('fontes_confirmadas', 1)}\n"
     texto += f"Score: {promo.get('score', 0)}\n"
-    texto += f"{promo.get('classification', 'ð¢ PROMOÃÃO BOA')}\n\n"
+    texto += f"{promo.get('classification', '🟢 PROMOÇÃO BOA')}\n\n"
     texto += "Link:\n"
     texto += str(promo.get("link", ""))
     return texto
@@ -1784,25 +1727,25 @@ def format_card(promo: dict) -> str:
 
 def format_lista(titulo: str, promocoes: list) -> str:
     if not promocoes:
-        return f"{titulo}\n\nNenhuma promoÃ§Ã£o registrada ainda."
+        return f"{titulo}\n\nNenhuma promoção registrada ainda."
 
     partes = [titulo, ""]
     for promo in promocoes:
-        partes.append("ââââââââââââââ")
-        partes.append(f"Programa: {promo.get('program', 'Programa nÃ£o identificado')}")
-        partes.append(f"TÃ­tulo: {promo.get('title', '')}")
+        partes.append("━━━━━━━━━━━━━━")
+        partes.append(f"Programa: {promo.get('program', 'Programa não identificado')}")
+        partes.append(f"Título: {promo.get('title', '')}")
         if promo.get("bonus_detectado", 0):
-            partes.append(f"BÃ´nus detectado: {promo.get('bonus_detectado')}%")
+            partes.append(f"Bônus detectado: {promo.get('bonus_detectado')}%")
         if promo.get("milheiro_detectado") is not None:
             partes.append(f"Milheiro detectado: R$ {promo.get('milheiro_detectado'):.2f}")
         if promo.get("sweet_spot"):
             partes.append("Sweet spot detectado: Sim")
-        partes.append(f"Prioridade: {promo.get('alert_priority', 'ð¢ PROMOÃÃO BOA')}")
+        partes.append(f"Prioridade: {promo.get('alert_priority', '🟢 PROMOÇÃO BOA')}")
         partes.append(f"Score: {promo.get('score', 0)}")
-        partes.append(f"{promo.get('classification', 'ð¢ PROMOÃÃO BOA')}")
+        partes.append(f"{promo.get('classification', '🟢 PROMOÇÃO BOA')}")
         partes.append("Link:")
         partes.append(str(promo.get("link", "")))
-    partes.append("ââââââââââââââ")
+    partes.append("━━━━━━━━━━━━━━")
     return "\n".join(partes)
 
 # =========================================================
@@ -1861,7 +1804,7 @@ async def _scheduled_scan():
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "âï¸ Radar de Milhas PRO\n\n"
+        "✈️ Radar de Milhas PRO\n\n"
         "/menu\n"
         "/promocoes\n"
         "/transferencias\n"
@@ -1874,7 +1817,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "ð¡ MENU\n\n"
+        "📡 MENU\n\n"
         "/promocoes\n"
         "/transferencias\n"
         "/passagens\n"
@@ -1892,49 +1835,49 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
-        await update.message.reply_text("â Comando disponÃ­vel apenas para o administrador.")
+        await update.message.reply_text("⛔ Comando disponível apenas para o administrador.")
         return
     await update.message.reply_text(build_debug_text(), disable_web_page_preview=True)
 
 
 async def cmd_promocoes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_ranking(limit=5)
-    await update.message.reply_text(format_lista("ð¥ Ãltimas promoÃ§Ãµes", promos), disable_web_page_preview=True)
+    await update.message.reply_text(format_lista("🔥 Últimas promoções", promos), disable_web_page_preview=True)
 
 
 async def cmd_transferencias(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_promocoes_por_tipo("transferencias", limit=5)
     if not promos:
-        texto = "ð³ PromoÃ§Ãµes de transferÃªncias de pontos monitoradas\n\nNenhuma transferÃªncia promocional ativa detectada no momento."
+        texto = "💳 Promoções de transferências de pontos monitoradas\n\nNenhuma transferência promocional ativa detectada no momento."
     else:
-        texto = format_lista("ð³ PromoÃ§Ãµes de transferÃªncias de pontos monitoradas", promos)
+        texto = format_lista("💳 Promoções de transferências de pontos monitoradas", promos)
     await update.message.reply_text(texto, disable_web_page_preview=True)
 
 
 async def cmd_passagens(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_promocoes_por_tipo("passagens", limit=5)
-    await update.message.reply_text(format_lista("âï¸ Ãltimos alertas de passagens", promos), disable_web_page_preview=True)
+    await update.message.reply_text(format_lista("✈️ Últimos alertas de passagens", promos), disable_web_page_preview=True)
 
 
 async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     promos = get_ranking(limit=MAX_RANKING if MAX_RANKING < 6 else 5)
     if not promos:
         await update.message.reply_text(
-            "ð Ranking oportunidades\n\nNenhuma promoÃ§Ã£o registrada ainda.",
+            "🏆 Ranking oportunidades\n\nNenhuma promoção registrada ainda.",
             disable_web_page_preview=True,
         )
         return
 
-    linhas = ["ð Ranking oportunidades", ""]
+    linhas = ["🏆 Ranking oportunidades", ""]
     for i, promo in enumerate(promos, start=1):
-        linhas.append(f"{i}. {promo.get('program', 'Programa nÃ£o identificado')}")
+        linhas.append(f"{i}. {promo.get('program', 'Programa não identificado')}")
         linhas.append(f"{promo.get('title', '')}")
-        linhas.append(f"Prioridade: {promo.get('alert_priority', 'ð¢ PROMOÃÃO BOA')}")
+        linhas.append(f"Prioridade: {promo.get('alert_priority', '🟢 PROMOÇÃO BOA')}")
         linhas.append(f"Score: {promo.get('score', 0)}")
-        linhas.append(f"{promo.get('classification', 'ð¢ PROMOÃÃO BOA')}")
+        linhas.append(f"{promo.get('classification', '🟢 PROMOÇÃO BOA')}")
         if i != len(promos):
             linhas.append("")
-            linhas.append("ââââââââââââââ")
+            linhas.append("━━━━━━━━━━━━━━")
             linhas.append("")
 
     await update.message.reply_text("\n".join(linhas), disable_web_page_preview=True)
@@ -1942,29 +1885,29 @@ async def cmd_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
-        await update.message.reply_text("â Comando disponÃ­vel apenas para o administrador.")
+        await update.message.reply_text("⛔ Comando disponível apenas para o administrador.")
         return
 
     if SCAN_LOCK.locked():
         await update.message.reply_text(
-            "â³ JÃ¡ existe uma varredura em andamento. Aguarde terminar.",
+            "⏳ Já existe uma varredura em andamento. Aguarde terminar.",
             disable_web_page_preview=True,
         )
         return
 
-    await update.message.reply_text("ð§ª Teste manual do radar iniciado...", disable_web_page_preview=True)
+    await update.message.reply_text("🧪 Teste manual do radar iniciado...", disable_web_page_preview=True)
     try:
         result = await _run_scan()
         metricas = carregar_metricas()
         await update.message.reply_text(
-            "â Teste manual concluÃ­do.\n\n"
+            "✅ Teste manual concluído.\n\n"
             f"Fontes monitoradas: {metricas.get('fontes_monitoradas', 0)}\n"
             f"Fontes ativas: {metricas.get('fontes_ativas', 0)}\n"
             f"Fontes com erro: {metricas.get('fontes_com_erro', 0)}\n"
-            f"PromoÃ§Ãµes analisadas: {result.get('detectadas', 0)}\n"
-            f"Novas promoÃ§Ãµes enviadas: {result.get('novas', 0)}\n"
-            f"Alertas crÃ­ticos no Ãºltimo ciclo: {metricas.get('alertas_criticos', 0)}\n"
-            f"Ãltimo erro: {metricas.get('ultimo_erro', 'nenhum')}",
+            f"Promoções analisadas: {result.get('detectadas', 0)}\n"
+            f"Novas promoções enviadas: {result.get('novas', 0)}\n"
+            f"Alertas críticos no último ciclo: {metricas.get('alertas_criticos', 0)}\n"
+            f"Último erro: {metricas.get('ultimo_erro', 'nenhum')}",
             disable_web_page_preview=True,
         )
     except Exception as e:
@@ -1972,7 +1915,7 @@ async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         metricas["ultimo_erro"] = str(e)
         metricas["varredura_em_andamento"] = False
         salvar_metricas(metricas)
-        await update.message.reply_text(f"â Erro ao executar o radar: {e}", disable_web_page_preview=True)
+        await update.message.reply_text(f"❌ Erro ao executar o radar: {e}", disable_web_page_preview=True)
 
 
 async def _startup_scan_with_delay():
