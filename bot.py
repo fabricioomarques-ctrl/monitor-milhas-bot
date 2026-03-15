@@ -284,6 +284,13 @@ RANKING_REJECT_TERMS = [
     "clube livelo",
     "benefÃ­cios do clube",
     "beneficios do clube",
+    "conheÃ§a o programa",
+    "acumule milhas",
+    "programa de pontos e recompensas",
+    "programa de pontos",
+    "como funciona",
+    "vantagens",
+    "institucional",
 ]
 
 EDITORIAL_GENERIC_TERMS = [
@@ -585,15 +592,68 @@ def is_commercial_noise_for_ranking(title: str, summary: str, link: str) -> bool
         "signature",
         "reativacao",
         "reativaÃ§Ã£o",
-        "clube",
+        "conheÃ§a o programa",
+        "acumule milhas",
+        "programa de pontos e recompensas",
+        "programa de pontos",
+        "como funciona",
+        "vantagens",
+        "institucional",
     ]
 
     if any(b in texto for b in blocks):
-        if not re.search(r"(\d{2,3})\s*%|milheiro|r\$\s*\d+[,.]?\d*|3\.?\d{3}|4\.?\d{3}|5\.?\d{3}", texto):
+        if not re.search(r"(\d{2,3})\s*%|milheiro|r\$\s*\d+[,.]?\d*|3\.?\d{3}|4\.?\d{3}|5\.?\d{3}|6\.?\d{3}|7\.?\d{3}|8\.?\d{3}|9\.?\d{3}", texto):
             return True
 
     if any(x in link_l for x in ["login", "reativacao", "signature", "bonus-200"]):
         return True
+
+    return False
+
+
+def is_real_opportunity_for_ranking(promo: dict) -> bool:
+    tipo = str(promo.get("type", "")).lower()
+    title = clean_text(promo.get("title", "")).lower()
+    link = clean_text(promo.get("link", "")).lower()
+    score = float(promo.get("score", 0) or 0)
+    bonus = int(promo.get("bonus_detectado") or 0)
+    milheiro = promo.get("milheiro_detectado")
+    sweet_spot = bool(promo.get("sweet_spot"))
+
+    generic_terms = [
+        "conheÃ§a o programa",
+        "acumule milhas",
+        "programa de pontos e recompensas",
+        "programa de pontos",
+        "como funciona",
+        "vantagens",
+        "institucional",
+        "benefÃ­cios do clube",
+        "beneficios do clube",
+    ]
+
+    if any(t in title for t in generic_terms):
+        return False
+
+    if any(t in link for t in ["programa", "institucional"]) and bonus == 0 and milheiro is None and not sweet_spot:
+        return False
+
+    if tipo == "transferencias":
+        return bonus >= 40
+
+    if tipo == "milheiro":
+        return milheiro is not None
+
+    if tipo == "passagens":
+        if sweet_spot:
+            return True
+        if score >= 8.0:
+            return True
+        if re.search(r"\b(3|4|5|6|7|8|9)\d{3,4}\b", title):
+            return True
+        if any(k in title for k in ["resgate", "passagem", "trecho", "executiva", "business"]):
+            return True
+        return False
 
     return False
 
@@ -1320,11 +1380,11 @@ def _penalidade_editorial(title: str, summary: str, source_kind: str) -> float:
 
     penalty = 0.0
     if source_kind == "rss" and is_editorial_generic(title, summary):
-        penalty += 0.60
+        penalty += 0.75
     if any(term in texto for term in ["confira", "encontramos oportunidades", "sugestÃµes de voos", "sugestoes de voos"]):
-        penalty += 0.35
-    if any(term in texto for term in ["clube livelo", "benefÃ­cios exclusivos", "beneficios exclusivos"]):
-        penalty += 0.80
+        penalty += 0.45
+    if any(term in texto for term in ["clube livelo", "benefÃ­cios exclusivos", "beneficios exclusivos", "conheÃ§a o programa", "acumule milhas"]):
+        penalty += 1.20
     return penalty
 
 
@@ -1603,7 +1663,6 @@ def get_ranking(limit: int = 5) -> list:
         titulo = clean_text(p.get("title", ""))
         resumo = clean_text(p.get("title", ""))
         link = clean_text(p.get("link", "")).lower()
-
         titulo_l = titulo.lower()
 
         if any(term in titulo_l for term in RANKING_REJECT_TERMS):
@@ -1614,23 +1673,21 @@ def get_ranking(limit: int = 5) -> list:
             continue
         if is_commercial_noise_for_ranking(titulo, resumo, link):
             continue
-
-        if p.get("type") == "transferencias" and int(p.get("bonus_detectado") or 0) < 40:
+        if not is_real_opportunity_for_ranking(p):
             continue
-
-        if p.get("type") == "milheiro" and p.get("milheiro_detectado") is None:
-            continue
-
-        if p.get("type") == "passagens":
-            if any(term in titulo_l for term in ["confira", "sugestÃµes de voos", "sugestoes de voos"]):
-                # aceita sÃ³ se for muito forte
-                if float(p.get("score", 0)) < 9.0:
-                    continue
 
         filtradas.append(p)
 
     filtradas = deduplicar(filtradas)
-    filtradas = sorted(filtradas, key=lambda p: (p.get("ranking_score", 0), p.get("score", 0)), reverse=True)
+    filtradas = sorted(
+        filtradas,
+        key=lambda p: (
+            p.get("ranking_score", 0),
+            p.get("score", 0),
+            1 if p.get("source_kind") in {"early_detect", "promo_page", "official"} else 0,
+        ),
+        reverse=True,
+    )
     return filtradas[:limit]
 
 # =========================================================
