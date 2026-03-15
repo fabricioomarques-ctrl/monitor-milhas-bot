@@ -284,13 +284,6 @@ RANKING_REJECT_TERMS = [
     "clube livelo",
     "benefÃ­cios do clube",
     "beneficios do clube",
-    "conheÃ§a o programa",
-    "acumule milhas",
-    "programa de pontos e recompensas",
-    "programa de pontos",
-    "como funciona",
-    "vantagens",
-    "institucional",
 ]
 
 EDITORIAL_GENERIC_TERMS = [
@@ -592,115 +585,17 @@ def is_commercial_noise_for_ranking(title: str, summary: str, link: str) -> bool
         "signature",
         "reativacao",
         "reativaÃ§Ã£o",
-        "conheÃ§a o programa",
-        "acumule milhas",
-        "programa de pontos e recompensas",
-        "programa de pontos",
-        "como funciona",
-        "vantagens",
-        "institucional",
+        "clube",
     ]
 
     if any(b in texto for b in blocks):
-        if not re.search(r"(\d{2,3})\s*%|milheiro|r\$\s*\d+[,.]?\d*|3\.?\d{3}|4\.?\d{3}|5\.?\d{3}|6\.?\d{3}|7\.?\d{3}|8\.?\d{3}|9\.?\d{3}", texto):
+        if not re.search(r"(\d{2,3})\s*%|milheiro|r\$\s*\d+[,.]?\d*|3\.?\d{3}|4\.?\d{3}|5\.?\d{3}", texto):
             return True
 
     if any(x in link_l for x in ["login", "reativacao", "signature", "bonus-200"]):
         return True
 
     return False
-
-
-def is_real_opportunity_for_ranking(promo: dict) -> bool:
-    tipo = str(promo.get("type", "")).lower()
-    title = clean_text(promo.get("title", "")).lower()
-    link = clean_text(promo.get("link", "")).lower()
-    source_kind = str(promo.get("source_kind", "")).lower()
-    score = float(promo.get("score", 0) or 0)
-    bonus = int(promo.get("bonus_detectado") or 0)
-    milheiro = promo.get("milheiro_detectado")
-    sweet_spot = bool(promo.get("sweet_spot"))
-
-    generic_terms = [
-        "conheÃ§a o programa",
-        "acumule milhas",
-        "programa de pontos e recompensas",
-        "programa de pontos",
-        "como funciona",
-        "vantagens",
-        "institucional",
-        "benefÃ­cios do clube",
-        "beneficios do clube",
-        "produtos, cashback, viagens",
-        "cashback, viagens",
-        "o que vocÃª procura",
-        "encontre novas experiÃªncias",
-        "encontre novas experiencias",
-        "programa de pontos e recompensas do santander",
-    ]
-
-    editorial_passagem = [
-        "confira trechos",
-        "confira",
-        "sugestÃµes de voos",
-        "sugestoes de voos",
-        "encontramos oportunidades",
-        "alerta ppv",
-        "radar ppv",
-        "no alerta ppv",
-        "no alerta de hoje",
-    ]
-
-    if any(t in title for t in generic_terms):
-        return False
-
-    if any(t in link for t in ["programa", "institucional"]) and bonus == 0 and milheiro is None and not sweet_spot:
-        return False
-
-    if tipo == "transferencias":
-        return bonus >= 40
-
-    if tipo == "milheiro":
-        return milheiro is not None
-
-    if tipo == "passagens":
-        if any(t in title for t in editorial_passagem) and source_kind == "rss":
-            return False
-        if sweet_spot:
-            return True
-        if score >= 8.0 and not any(t in title for t in editorial_passagem):
-            return True
-        if re.search(r"\b(3|4|5|6|7|8|9)\d{3,4}\b", title) and any(k in title for k in ["resgate", "passagem", "trecho", "executiva", "business", "off no resgate"]):
-            return True
-        if any(k in title for k in ["off no resgate", "desconto no resgate", "passagem", "passagens", "trechos", "resgate"]) and not any(t in title for t in editorial_passagem):
-            return True
-        return False
-
-    return False
-
-
-def is_benign_source_error(url: str, erro: str) -> bool:
-    u = clean_text(url).lower()
-    e = clean_text(erro).lower()
-
-    if "timed out" in e or "read timed out" in e or "timeout" in e:
-        return True
-
-    if "403" in e or "forbidden" in e:
-        # sitemaps e pÃ¡ginas que bloqueiam crawler nÃ£o devem poluir status/debug geral
-        if "sitemap" in u or "livelo" in u or "esfera" in u:
-            return True
-        return True
-
-    return False
-
-
-def sanitize_falhas(falhas: dict) -> dict:
-    limpas = {}
-    for fonte, erro in (falhas or {}).items():
-        if not is_benign_source_error(fonte, erro):
-            limpas[fonte] = erro
-    return limpas
 
 # =========================================================
 # STORAGE
@@ -1256,7 +1151,7 @@ def _detectar_sweet_spot(texto: str) -> bool:
     if any(k in t for k in ["executiva", "business", "primeira classe", "first class"]):
         if re.search(r"\b(3[0-9]|4[0-9]|5[0-9]|6[0-9]|7[0-9]|8[0-9])\.?\d{3}\b", t):
             return True
-    if any(k in t for k in ["miami", "orlando", "europa", "madrid", "lisboa", "paris", "roma", "nova york", "new york", "rio de janeiro", "ibiza"]):
+    if any(k in t for k in ["miami", "orlando", "europa", "madrid", "lisboa", "paris", "roma", "nova york", "new york", "rio de janeiro"]):
         if re.search(r"\b(3|4|5|6|7|8|9)\d{3,4}\b", t):
             return True
     if any(k in t for k in ["off no resgate", "desconto no resgate", "25% off", "30% off"]):
@@ -1425,11 +1320,11 @@ def _penalidade_editorial(title: str, summary: str, source_kind: str) -> float:
 
     penalty = 0.0
     if source_kind == "rss" and is_editorial_generic(title, summary):
-        penalty += 0.75
+        penalty += 0.60
     if any(term in texto for term in ["confira", "encontramos oportunidades", "sugestÃµes de voos", "sugestoes de voos"]):
-        penalty += 0.45
-    if any(term in texto for term in ["clube livelo", "benefÃ­cios exclusivos", "beneficios exclusivos", "conheÃ§a o programa", "acumule milhas"]):
-        penalty += 1.20
+        penalty += 0.35
+    if any(term in texto for term in ["clube livelo", "benefÃ­cios exclusivos", "beneficios exclusivos"]):
+        penalty += 0.80
     return penalty
 
 
@@ -1581,10 +1476,9 @@ def executar_varredura():
 
     try:
         itens, falhas = coletar_todas_fontes()
-        falhas_visiveis = sanitize_falhas(falhas)
 
         fontes_monitoradas = total_fontes_monitoradas()
-        fontes_com_erro = len(falhas_visiveis)
+        fontes_com_erro = len(falhas)
         fontes_ativas = max(fontes_monitoradas - fontes_com_erro, 0)
 
         promocoes_detectadas = transformar_em_promocoes(itens)
@@ -1611,7 +1505,7 @@ def executar_varredura():
         metricas["fontes_monitoradas"] = fontes_monitoradas
         metricas["fontes_ativas"] = fontes_ativas
         metricas["fontes_com_erro"] = fontes_com_erro
-        metricas["falhas_fontes"] = falhas_visiveis
+        metricas["falhas_fontes"] = falhas
         metricas["promocoes_detectadas_ultimo_ciclo"] = len(promocoes_detectadas)
         metricas["alertas_criticos"] = criticos
         metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1624,10 +1518,9 @@ def executar_varredura():
         STATE.metricas = metricas
         return {"novas": novas, "detectadas": len(promocoes_detectadas)}
     except Exception as e:
-        erro = str(e)
         metricas = carregar_metricas()
         metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        metricas["ultimo_erro"] = "nenhum" if is_benign_source_error("", erro) else erro
+        metricas["ultimo_erro"] = str(e)
         metricas["varredura_em_andamento"] = False
         salvar_metricas(metricas)
         STATE.metricas = metricas
@@ -1653,15 +1546,6 @@ def get_state_snapshot():
     if not metricas.get("fontes_monitoradas"):
         metricas["fontes_monitoradas"] = total_fontes_monitoradas()
 
-    metricas["falhas_fontes"] = sanitize_falhas(metricas.get("falhas_fontes", {}))
-    metricas["fontes_com_erro"] = len(metricas["falhas_fontes"])
-    if metricas.get("fontes_monitoradas"):
-        metricas["fontes_ativas"] = max(metricas["fontes_monitoradas"] - metricas["fontes_com_erro"], 0)
-
-    ultimo_erro = clean_text(metricas.get("ultimo_erro", "nenhum"))
-    if is_benign_source_error("", ultimo_erro):
-        metricas["ultimo_erro"] = "nenhum"
-
     STATE.promocoes = promocoes
     STATE.metricas = metricas
     return {"promocoes": promocoes, "metricas": metricas}
@@ -1681,7 +1565,7 @@ def get_promocoes_por_tipo(tipo: str, limit: int = 5) -> list:
             "compre pontos", "compra de pontos", "reativacao", "reativaÃ§Ã£o",
             "criar conta", "fazer login", "login", "boas vindas", "boas-vindas",
             "assine", "assinatura", "signature", "all signature",
-            "hotel", "hoteis", "hotÃ©is", "euros",
+            "hotel", "hoteis", "hotÃ©is", "desconto", "euros",
             "gaste em hotÃ©is", "gaste em hoteis",
             "acelere seus beneficios", "acelere seus benefÃ­cios",
         ]
@@ -1719,6 +1603,7 @@ def get_ranking(limit: int = 5) -> list:
         titulo = clean_text(p.get("title", ""))
         resumo = clean_text(p.get("title", ""))
         link = clean_text(p.get("link", "")).lower()
+
         titulo_l = titulo.lower()
 
         if any(term in titulo_l for term in RANKING_REJECT_TERMS):
@@ -1729,21 +1614,23 @@ def get_ranking(limit: int = 5) -> list:
             continue
         if is_commercial_noise_for_ranking(titulo, resumo, link):
             continue
-        if not is_real_opportunity_for_ranking(p):
+
+        if p.get("type") == "transferencias" and int(p.get("bonus_detectado") or 0) < 40:
             continue
+
+        if p.get("type") == "milheiro" and p.get("milheiro_detectado") is None:
+            continue
+
+        if p.get("type") == "passagens":
+            if any(term in titulo_l for term in ["confira", "sugestÃµes de voos", "sugestoes de voos"]):
+                # aceita sÃ³ se for muito forte
+                if float(p.get("score", 0)) < 9.0:
+                    continue
 
         filtradas.append(p)
 
     filtradas = deduplicar(filtradas)
-    filtradas = sorted(
-        filtradas,
-        key=lambda p: (
-            p.get("ranking_score", 0),
-            p.get("score", 0),
-            1 if p.get("source_kind") in {"early_detect", "promo_page", "official"} else 0,
-        ),
-        reverse=True,
-    )
+    filtradas = sorted(filtradas, key=lambda p: (p.get("ranking_score", 0), p.get("score", 0)), reverse=True)
     return filtradas[:limit]
 
 # =========================================================
@@ -1796,7 +1683,6 @@ def build_debug_text() -> str:
     snapshot = get_state_snapshot()
     metricas = snapshot["metricas"]
     falhas = metricas.get("falhas_fontes", {})
-    ultimo_erro_geral = metricas.get("ultimo_erro", "nenhum")
 
     texto = (
         "ð  DEBUG RADAR\n"
@@ -1805,7 +1691,7 @@ def build_debug_text() -> str:
         f"Fontes ativas: {metricas.get('fontes_ativas', 0)}\n"
         f"Fontes com erro: {metricas.get('fontes_com_erro', 0)}\n"
         f"Ãltima execuÃ§Ã£o: {metricas.get('ultima_execucao') or 'ainda nÃ£o executado'}\n"
-        f"Ãltimo erro geral: {ultimo_erro_geral}\n\n"
+        f"Ãltimo erro geral: {metricas.get('ultimo_erro', 'nenhum')}\n\n"
         "Falhas por fonte\n"
         "ââââââââââââââ\n\n"
     )
@@ -1910,7 +1796,7 @@ async def _scheduled_scan():
     except Exception as e:
         metricas = carregar_metricas()
         metricas["ultima_execucao"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        metricas["ultimo_erro"] = "nenhum" if is_benign_source_error("", str(e)) else str(e)
+        metricas["ultimo_erro"] = str(e)
         metricas["varredura_em_andamento"] = False
         salvar_metricas(metricas)
         STATE.metricas = metricas
@@ -2026,7 +1912,7 @@ async def cmd_testeradar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         metricas = carregar_metricas()
-        metricas["ultimo_erro"] = "nenhum" if is_benign_source_error("", str(e)) else str(e)
+        metricas["ultimo_erro"] = str(e)
         metricas["varredura_em_andamento"] = False
         salvar_metricas(metricas)
         await update.message.reply_text(f"â Erro ao executar o radar: {e}", disable_web_page_preview=True)
@@ -2054,7 +1940,6 @@ async def post_init(application):
     metricas = carregar_metricas()
     metricas["varredura_em_andamento"] = True
     metricas["fontes_monitoradas"] = metricas.get("fontes_monitoradas", 0) or total_fontes_monitoradas()
-    metricas["ultimo_erro"] = "nenhum"
     salvar_metricas(metricas)
 
     asyncio.create_task(_startup_scan_with_delay())
